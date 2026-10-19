@@ -4,7 +4,7 @@ FYP 攝影輔助應用，協助使用者理解場景、選擇參考照片並獲�
 
 ## 目前進度
 
-已建立 Android Java／XML 起始專案，顯示簡單歡迎畫面。相機、推薦與 AI 功能尚未實作；算法及本機／遠端執行位置待實驗決定。
+已加入 Android Java／XML 的相機權限與即時預覽。先按「開啟相機」授權，優先使用後置相機；沒有後置鏡頭時使用前置鏡頭。拍攝、保存、推薦與 AI 功能尚未實作；算法及本機／遠端執行位置待實驗決定。
 
 ## 專案內容
 
@@ -20,7 +20,7 @@ FYP 攝影輔助應用，協助使用者理解場景、選擇參考照片並獲�
 4. 選擇 Android 8.0（API 26）或以上的模擬器／手機，以 app 設定按 Run。
 
 固定版本：AGP 9.4.1、Gradle 9.6.0、compileSdk／targetSdk 37，minSdk 26。Java 原始碼相容級別是 11，與執行 Gradle 所用 JDK 不同。
-目前使用 Android 平台內建 Activity 與 Views，沒有額外 UI 或 AI 套件。
+使用 AndroidX ComponentActivity、XML Views 及 CameraX 1.6.2；相機綁定畫面生命週期，切到背景時停止使用，返回時恢復。預覽保持比例，部分螢幕會留黑邊。
 
 ## 命令列建置
 
@@ -33,14 +33,29 @@ cd frontend
 
 Windows 使用 `gradlew.bat`。本機 SDK 路徑不提交到 Git；不要將自己的絕對路徑寫進共用建置設定。
 APK 產生於 `frontend/app/build/outputs/apk/debug/app-debug.apk`。
-目前沒有業務邏輯，因此尚未加入單元測試；新增相機等功能時再加入對應測試。
+相機裝置整合測試放在 `frontend/app/src/androidTest/`。需要已啟動且有可用相機的測試裝置，並以全新安裝或只在測試裝置清除此 App 資料作為前置條件。測試會授予相機權限，請勿對日常使用中的 App 資料執行清除。
 
-## 本次驗證
+```sh
+adb shell pm clear com.yrf3.photocopilot
+./gradlew :app:connectedDebugAndroidTest
+```
 
-- Debug APK 編譯及 Android lint 已通過（2026-10-19）。
-- lint 仍提示可更新 Gradle，以及未定義 Android 12+ 資料轉移規則；目前沒有儲存使用者資料，加入照片儲存時再明確定義轉移策略。
-- 現有 API 37 模擬器在一般及冷啟動後均離線，尚未完成安裝、畫面及生命週期驗證；合併前請在 Android Studio 或真機補驗。
-- 建置工具相容性依據：[Android 官方 AGP 9.4 說明](https://developer.android.com/build/releases/agp-9-4-0-release-notes)。
+若第一次尚未安裝 App，第一個指令可省略。
+
+## 相機驗證
+
+2026-10-19：Debug APK 編譯、lint 及 API 37（Android 17）虛擬相機整合測試通過（1 個完整流程、0 失敗）。已確認真實 STREAMING、背景 IDLE、返回及 Activity 重建後恢復，並檢查預覽截圖。
+
+自動化測試涵蓋未授權說明、授權後預覽、Activity 重建與背景返回。真機另檢查：
+
+- 第一次開啟、允許／拒絕、重複拒絕後前往設定，以及從設定返回。
+- 「僅限這次」失效後可重新請求；在設定撤銷權限後重開 App。
+- 直向／橫向、切到背景／返回、鎖屏／解鎖後恢復預覽。
+- 相機被其他 App 佔用、系統相機存取關閉及無鏡頭時有提示，可恢復或重試。
+
+預覽不會保存或上傳影像，只要求 CAMERA 權限；拍攝／保存之後另行加入。
+建置工具依據：[AGP 9.4](https://developer.android.com/build/releases/agp-9-4-0-release-notes)。
+相機實作依據：[CameraX 預覽](https://developer.android.com/media/camera/camerax/preview)、[CameraX 版本](https://developer.android.com/jetpack/androidx/releases/camera)。
 
 ## 團隊協作
 
@@ -49,4 +64,4 @@ APK 產生於 `frontend/app/build/outputs/apk/debug/app-debug.apk`。
 - main 保持可編譯、可啟動；提交前完成建置及 lint，畫面修改另在模擬器／真機檢查。
 - 不提交個人設定、密鑰、模型權重、大量照片或研究參與者影像。
 
-下一步：相機權限與預覽，之後才加入拍攝及保存。
+下一步：加入拍攝及保存，再接假資料推薦流程。
