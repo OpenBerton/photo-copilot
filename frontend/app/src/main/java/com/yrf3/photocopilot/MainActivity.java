@@ -8,6 +8,9 @@ import android.os.Bundle;
 import android.os.Build;
 import android.provider.Settings;
 import android.view.View;
+import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
+import android.content.res.ColorStateList;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.TextView;
@@ -23,6 +26,11 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.yrf3.photocopilot.camera.CameraSession;
+import com.yrf3.photocopilot.camera.CompositionGrid;
+import androidx.camera.core.CameraSelector;
+import androidx.camera.core.ImageCapture;
+import androidx.camera.core.ZoomState;
+import java.util.Locale;
 
 public class MainActivity extends ComponentActivity {
     private static final String PERMISSIONS = "camera_permissions";
@@ -37,6 +45,12 @@ public class MainActivity extends ComponentActivity {
     private ActivityResultLauncher<String> storageRequest;
     private ImageButton shutter;
     private TextView photoStatus;
+    private ImageButton switchCamera;
+    private ImageButton flash;
+    private ImageButton gridButton;
+    private Button zoomButton;
+    private CompositionGrid grid;
+    private boolean gridVisible;
     private final Runnable hidePhotoStatus = () -> photoStatus.setVisibility(View.GONE);
     private boolean captureInProgress;
     private boolean captureAfterPermission;
@@ -67,6 +81,46 @@ public class MainActivity extends ComponentActivity {
         shutter = findViewById(R.id.shutter_button);
         photoStatus = findViewById(R.id.photo_status);
         shutter.setOnClickListener(view -> requestPhoto());
+        switchCamera = findViewById(R.id.switch_camera);
+        flash = findViewById(R.id.flash_button);
+        gridButton = findViewById(R.id.grid_button);
+        zoomButton = findViewById(R.id.zoom_button);
+        grid = findViewById(R.id.composition_grid);
+        gridVisible = savedInstanceState != null && savedInstanceState.getBoolean("grid");
+        switchCamera.setOnClickListener(view -> cameraSession.switchCamera());
+        flash.setOnClickListener(view -> cameraSession.cycleFlash());
+        gridButton.setOnClickListener(view -> {
+            gridVisible = !gridVisible;
+            updateControls();
+        });
+        zoomButton.setOnClickListener(view -> {
+            ZoomState state = cameraSession.getZoomState();
+            if (state != null) {
+                float high = Math.min(2f, state.getMaxZoomRatio());
+                float low = Math.min(1f, state.getMinZoomRatio());
+                cameraSession.setZoomRatio(state.getZoomRatio() < 0.95f ? 1f
+                        : state.getZoomRatio() < high - 0.05f ? high : low);
+            }
+        });
+        zoomButton.setOnLongClickListener(view -> {
+            cameraSession.setZoomRatio(1f);
+            return true;
+        });
+        ScaleGestureDetector scaling = new ScaleGestureDetector(this,
+                new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                    @Override
+                    public boolean onScale(ScaleGestureDetector detector) {
+                        cameraSession.scaleZoom(detector.getScaleFactor());
+                        return true;
+                    }
+                });
+        previewView.setOnTouchListener((view, event) -> {
+            scaling.onTouchEvent(event);
+            if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                view.performClick();
+            }
+            return true;
+        });
         getLifecycle().addObserver((LifecycleEventObserver) (source, event) -> {
             if (event == Lifecycle.Event.ON_RESUME) {
                 updateShutter();
@@ -101,6 +155,16 @@ public class MainActivity extends ComponentActivity {
                     }
 
                     @Override
+                    public void onControlsChanged() {
+                        updateControls();
+                    }
+
+                    @Override
+                    public void onControlError() {
+                        showPhotoStatus(R.string.camera_control_error, true);
+                    }
+
+                    @Override
                     public void onError(boolean noCamera) {
                         if (!hasCameraPermission()) {
                             showPermissionState();
@@ -110,6 +174,13 @@ public class MainActivity extends ComponentActivity {
                         }
                     }
                 });
+        if (savedInstanceState != null) {
+            cameraSession.restoreControls(savedInstanceState.getInt("lens",
+                            CameraSelector.LENS_FACING_BACK),
+                    savedInstanceState.getInt("flash", ImageCapture.FLASH_MODE_OFF),
+                    savedInstanceState.getFloat("zoom", 1f));
+        }
+        updateControls();
         action.setOnClickListener(view -> {
             if (hasCameraPermission()) {
                 cameraSession.stop();
@@ -134,7 +205,10 @@ public class MainActivity extends ComponentActivity {
 
     @Override
     protected void onPause() {
-        shutter.setEnabled(false);
+        setControlEnabled(shutter, false);
+        setControlEnabled(switchCamera, false);
+        setControlEnabled(flash, false);
+        setControlEnabled(zoomButton, false);
         super.onPause();
     }
 
@@ -203,6 +277,57 @@ public class MainActivity extends ComponentActivity {
             shutter.setContentDescription(getString(captureInProgress ? R.string.photo_saving
                     : storageNeedsSettings() ? R.string.open_settings : R.string.take_photo));
         }
+        updateControls();
+    }
+
+    private void updateControls() {
+        if (cameraSession == null || switchCamera == null) {
+            return;
+        }
+        boolean ready = cameraSession.isReadyToCapture() && !captureInProgress;
+        setControlEnabled(switchCamera, ready && cameraSession.canSwitchCamera());
+        switchCamera.setSelected(cameraSession.getLensFacing() == CameraSelector.LENS_FACING_FRONT);
+        setControlEnabled(flash, ready && cameraSession.hasFlash());
+        int mode = cameraSession.getFlashMode();
+        flash.setImageResource(mode == ImageCapture.FLASH_MODE_ON ? R.drawable.ic_flash_on
+                : mode == ImageCapture.FLASH_MODE_AUTO ? R.drawable.ic_flash_auto
+                : R.drawable.ic_flash_off);
+        flash.setContentDescription(getString(mode == ImageCapture.FLASH_MODE_ON
+                ? R.string.flash_on : mode == ImageCapture.FLASH_MODE_AUTO
+                ? R.string.flash_auto : R.string.flash_off));
+        flash.setSelected(mode != ImageCapture.FLASH_MODE_OFF);
+        grid.setImageAspectRatio(cameraSession.isPreviewReady()
+                ? cameraSession.getPreviewAspectRatio() : 0f);
+        grid.setVisibility(gridVisible ? View.VISIBLE : View.GONE);
+        gridButton.setSelected(gridVisible);
+        gridButton.setImageTintList(ColorStateList.valueOf(getColor(
+                gridVisible ? R.color.accent : R.color.foreground)));
+        gridButton.setContentDescription(getString(gridVisible ? R.string.grid_on : R.string.grid_off));
+        ZoomState state = cameraSession.getZoomState();
+        setControlEnabled(zoomButton, ready && state != null
+                && state.getMaxZoomRatio() - state.getMinZoomRatio() > 0.001f);
+        float ratio = state == null ? 1f : state.getZoomRatio();
+        zoomButton.setText(String.format(Locale.getDefault(),
+                Math.abs(ratio - Math.round(ratio)) < 0.05f ? "%.0f×" : "%.1f×", ratio));
+        zoomButton.setContentDescription(getString(R.string.zoom_description, ratio));
+    }
+
+    private void setControlEnabled(View control, boolean enabled) {
+        control.setEnabled(enabled);
+        control.setAlpha(enabled ? 1f : 0.35f);
+    }
+
+    CameraSession getCameraSession() {
+        return cameraSession;
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle state) {
+        state.putBoolean("grid", gridVisible);
+        state.putInt("lens", cameraSession.getLensFacing());
+        state.putInt("flash", cameraSession.getFlashMode());
+        state.putFloat("zoom", cameraSession.getRequestedZoomRatio());
+        super.onSaveInstanceState(state);
     }
 
     private void showPhotoStatus(int message, boolean temporary) {

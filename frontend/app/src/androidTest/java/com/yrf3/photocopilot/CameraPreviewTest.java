@@ -11,6 +11,13 @@ import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
+import android.view.MotionEvent;
+import androidx.camera.core.CameraSelector;
+import androidx.camera.core.ImageCapture;
+import androidx.camera.core.ZoomState;
+import com.yrf3.photocopilot.camera.CameraSession;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -78,6 +85,15 @@ public class CameraPreviewTest {
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             assertPreviewVisible(scenario);
             awaitStreaming(scenario);
+            verifyControls(scenario);
+            AtomicReference<Integer> selectedLens = new AtomicReference<>();
+            AtomicReference<Integer> selectedFlash = new AtomicReference<>();
+            AtomicReference<Float> selectedZoom = new AtomicReference<>();
+            scenario.onActivity(activity -> {
+                selectedLens.set(activity.getCameraSession().getLensFacing());
+                selectedFlash.set(activity.getCameraSession().getFlashMode());
+                selectedZoom.set(activity.getCameraSession().getZoomState().getZoomRatio());
+            });
             scenario.moveToState(Lifecycle.State.CREATED);
             awaitStreamState(scenario, PreviewView.StreamState.IDLE);
             scenario.moveToState(Lifecycle.State.RESUMED);
@@ -85,8 +101,25 @@ public class CameraPreviewTest {
             scenario.recreate();
             assertPreviewVisible(scenario);
             awaitStreaming(scenario);
+            awaitZoomRatio(scenario, selectedZoom.get());
             assertEquals(PackageManager.PERMISSION_GRANTED,
                     context.checkSelfPermission(Manifest.permission.CAMERA));
+            scenario.onActivity(activity -> {
+                assertEquals((int) selectedLens.get(), activity.getCameraSession().getLensFacing());
+                assertEquals((int) selectedFlash.get(), activity.getCameraSession().getFlashMode());
+                assertTrue(activity.findViewById(R.id.grid_button).isSelected());
+                assertEquals(View.VISIBLE, activity.findViewById(R.id.composition_grid).getVisibility());
+            });
+            rotateAndAwait(scenario, ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE,
+                    Configuration.ORIENTATION_LANDSCAPE);
+            rotateAndAwait(scenario, ActivityInfo.SCREEN_ORIENTATION_PORTRAIT,
+                    Configuration.ORIENTATION_PORTRAIT);
+            scenario.onActivity(activity -> {
+                assertEquals((int) selectedLens.get(), activity.getCameraSession().getLensFacing());
+                assertEquals((int) selectedFlash.get(), activity.getCameraSession().getFlashMode());
+                assertTrue(activity.findViewById(R.id.grid_button).isSelected());
+            });
+            awaitZoomRatio(scenario, selectedZoom.get());
             saveScreenshot(context);
 
             Uri firstPhoto = capturePhoto(context, scenario, true);
@@ -104,6 +137,171 @@ public class CameraPreviewTest {
             for (Uri photo : photosCreatedByTest) {
                 context.getContentResolver().delete(photo, null, null);
             }
+        }
+    }
+
+    private static void verifyControls(ActivityScenario<MainActivity> scenario) {
+        scenario.onActivity(activity -> {
+            View button = activity.findViewById(R.id.grid_button);
+            button.performClick();
+            assertTrue(button.isSelected());
+            assertEquals(View.VISIBLE, activity.findViewById(R.id.composition_grid).getVisibility());
+            button.performClick();
+            assertEquals(View.GONE, activity.findViewById(R.id.composition_grid).getVisibility());
+            button.performClick();
+        });
+        AtomicReference<Integer> previousLens = new AtomicReference<>();
+        AtomicBoolean canSwitch = new AtomicBoolean();
+        scenario.onActivity(activity -> {
+            CameraSession camera = activity.getCameraSession();
+            previousLens.set(camera.getLensFacing());
+            canSwitch.set(camera.canSwitchCamera());
+            ZoomState current = camera.getZoomState();
+            System.out.println("Initial camera: lens=" + camera.getLensFacing()
+                    + ", flash=" + camera.hasFlash() + ", zoom=" + current.getMinZoomRatio()
+                    + ".." + current.getMaxZoomRatio());
+            View button = activity.findViewById(R.id.switch_camera);
+            assertEquals(camera.canSwitchCamera(), button.isEnabled());
+            if (camera.canSwitchCamera()) {
+                button.performClick();
+                assertFalse("Wait for the new camera before another switch.", button.isEnabled());
+            }
+        });
+        awaitCaptureReady(scenario);
+        scenario.onActivity(activity -> {
+            CameraSession camera = activity.getCameraSession();
+            if (canSwitch.get()) {
+                assertFalse(previousLens.get() == camera.getLensFacing());
+            }
+            ZoomState current = camera.getZoomState();
+            System.out.println("Selected camera: lens=" + camera.getLensFacing()
+                    + ", flash=" + camera.hasFlash() + ", zoom=" + current.getMinZoomRatio()
+                    + ".." + current.getMaxZoomRatio());
+            View flash = activity.findViewById(R.id.flash_button);
+            assertEquals(camera.hasFlash(), flash.isEnabled());
+            assertEquals(ImageCapture.FLASH_MODE_OFF, camera.getFlashMode());
+            if (camera.hasFlash()) {
+                flash.performClick();
+                assertEquals(ImageCapture.FLASH_MODE_AUTO, camera.getFlashMode());
+                flash.performClick();
+                assertEquals(ImageCapture.FLASH_MODE_ON, camera.getFlashMode());
+                flash.performClick();
+                assertEquals(ImageCapture.FLASH_MODE_OFF, camera.getFlashMode());
+            }
+        });
+        AtomicBoolean zoomSupported = new AtomicBoolean();
+        scenario.onActivity(activity -> {
+            ZoomState zoom = activity.getCameraSession().getZoomState();
+            zoomSupported.set(zoom != null && zoom.getMaxZoomRatio() > 1.1f);
+        });
+        if (zoomSupported.get()) {
+            pinchOut(scenario);
+            awaitZoom(scenario, false);
+            scenario.onActivity(activity -> activity.findViewById(R.id.zoom_button).performLongClick());
+            awaitZoom(scenario, true);
+            scenario.onActivity(activity -> activity.findViewById(R.id.zoom_button).performClick());
+            awaitZoom(scenario, false);
+        }
+    }
+
+    private static void rotateAndAwait(ActivityScenario<MainActivity> scenario,
+            int requestedOrientation, int expectedOrientation) {
+        scenario.onActivity(activity -> activity.setRequestedOrientation(requestedOrientation));
+        long deadline = SystemClock.elapsedRealtime() + 15_000;
+        AtomicBoolean rotated = new AtomicBoolean();
+        do {
+            scenario.onActivity(activity -> rotated.set(activity.getResources().getConfiguration()
+                    .orientation == expectedOrientation));
+            if (rotated.get()) {
+                awaitCaptureReady(scenario);
+                return;
+            }
+            SystemClock.sleep(100);
+        } while (SystemClock.elapsedRealtime() < deadline);
+        fail("The device did not rotate to the requested orientation.");
+    }
+
+    private static void awaitZoomRatio(ActivityScenario<MainActivity> scenario, float expected) {
+        long deadline = SystemClock.elapsedRealtime() + 10_000;
+        AtomicReference<Float> actual = new AtomicReference<>();
+        do {
+            scenario.onActivity(activity -> {
+                ZoomState state = activity.getCameraSession().getZoomState();
+                actual.set(state == null ? null : state.getZoomRatio());
+            });
+            if (actual.get() != null && Math.abs(actual.get() - expected) < 0.05f) {
+                return;
+            }
+            SystemClock.sleep(100);
+        } while (SystemClock.elapsedRealtime() < deadline);
+        fail("Zoom was not restored: expected " + expected + ", actual " + actual.get());
+    }
+
+    private static void awaitZoom(ActivityScenario<MainActivity> scenario, boolean reset) {
+        long deadline = SystemClock.elapsedRealtime() + 10_000;
+        AtomicBoolean applied = new AtomicBoolean();
+        do {
+            scenario.onActivity(activity -> {
+                ZoomState state = activity.getCameraSession().getZoomState();
+                applied.set(state != null && (reset ? Math.abs(state.getZoomRatio() - 1f) < 0.05f
+                        : state.getZoomRatio() > 1.05f));
+            });
+            if (applied.get()) {
+                return;
+            }
+            SystemClock.sleep(100);
+        } while (SystemClock.elapsedRealtime() < deadline);
+        fail("The camera did not apply the requested zoom.");
+    }
+
+    private static void pinchOut(ActivityScenario<MainActivity> scenario) {
+        float[] center = new float[3];
+        scenario.onActivity(activity -> {
+            View preview = activity.findViewById(R.id.preview_view);
+            int[] location = new int[2];
+            preview.getLocationOnScreen(location);
+            center[0] = location[0] + preview.getWidth() / 2f;
+            center[1] = location[1] + preview.getHeight() / 2f;
+            center[2] = Math.min(preview.getWidth(), preview.getHeight()) * 0.12f;
+        });
+        long start = SystemClock.uptimeMillis();
+        MotionEvent.PointerProperties[] properties = new MotionEvent.PointerProperties[2];
+        MotionEvent.PointerCoords[] coordinates = new MotionEvent.PointerCoords[2];
+        for (int index = 0; index < 2; index++) {
+            properties[index] = new MotionEvent.PointerProperties();
+            properties[index].id = index;
+            properties[index].toolType = MotionEvent.TOOL_TYPE_FINGER;
+            coordinates[index] = new MotionEvent.PointerCoords();
+            coordinates[index].y = center[1];
+            coordinates[index].pressure = 1f;
+            coordinates[index].size = 1f;
+        }
+        coordinates[0].x = center[0] - center[2];
+        coordinates[1].x = center[0] + center[2];
+        sendTouch(start, MotionEvent.ACTION_DOWN, 1, properties, coordinates);
+        sendTouch(start, MotionEvent.ACTION_POINTER_DOWN | (1 << MotionEvent.ACTION_POINTER_INDEX_SHIFT),
+                2, properties, coordinates);
+        for (int step = 1; step <= 8; step++) {
+            float span = center[2] * (1f + step * 0.12f);
+            coordinates[0].x = center[0] - span;
+            coordinates[1].x = center[0] + span;
+            SystemClock.sleep(30);
+            sendTouch(start, MotionEvent.ACTION_MOVE, 2, properties, coordinates);
+        }
+        sendTouch(start, MotionEvent.ACTION_POINTER_UP | (1 << MotionEvent.ACTION_POINTER_INDEX_SHIFT),
+                2, properties, coordinates);
+        sendTouch(start, MotionEvent.ACTION_UP, 1, properties, coordinates);
+    }
+
+    private static void sendTouch(long start, int action, int count,
+            MotionEvent.PointerProperties[] properties, MotionEvent.PointerCoords[] coordinates) {
+        MotionEvent event = MotionEvent.obtain(start, SystemClock.uptimeMillis(), action, count,
+                properties, coordinates, 0, 0, 1f, 1f, 0, 0,
+                android.view.InputDevice.SOURCE_TOUCHSCREEN, 0);
+        try {
+            InstrumentationRegistry.getInstrumentation().sendPointerSync(event);
+        } finally {
+            event.recycle();
         }
     }
 
@@ -143,6 +341,19 @@ public class CameraPreviewTest {
         }
         assertTrue("The saved JPEG must have a valid width.", options.outWidth > 0);
         assertTrue("The saved JPEG must have a valid height.", options.outHeight > 0);
+        assertEquals("The saved image data must be a JPEG.", "image/jpeg", options.outMimeType);
+        options.inJustDecodeBounds = false;
+        options.inSampleSize = 1;
+        while (options.outWidth / options.inSampleSize > 1024
+                || options.outHeight / options.inSampleSize > 1024) {
+            options.inSampleSize *= 2;
+        }
+        try (InputStream input = resolver.openInputStream(photo)) {
+            assertNotNull(input);
+            Bitmap decoded = BitmapFactory.decodeStream(input, null, options);
+            assertNotNull("The saved JPEG pixels must be decodable.", decoded);
+            decoded.recycle();
+        }
         return photo;
     }
 

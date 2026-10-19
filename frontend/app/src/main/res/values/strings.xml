@@ -14,4 +14,13 @@
     <string name="photo_saved">Photo saved to your gallery.</string>
     <string name="photo_error">Could not save the photo. Check available storage and try again.</string>
     <string name="photo_storage_permission">Allow storage access to save photos to your gallery.</string>
+    <string name="switch_camera">Switch front and rear cameras</string>
+    <string name="flash_off">Flash off. Tap for auto.</string>
+    <string name="flash_auto">Flash auto. Tap to turn on.</string>
+    <string name="flash_on">Flash on. Tap to turn off.</string>
+    <string name="grid_off">Show composition grid</string>
+    <string name="grid_on">Hide composition grid</string>
+    <string name="zoom_description">Zoom %1$.1f times. Tap to change, hold to reset.</string>
+    <string name="camera_control_error">Could not change the camera setting. Try again.</string>
+    <string name="zoom_default" translatable="false">1×</string>
 </resources>

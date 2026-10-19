@@ -9,6 +9,9 @@ import androidx.camera.core.CameraSelector;
 import androidx.camera.core.CameraState;
 import androidx.camera.core.ImageCapture;
 import androidx.camera.core.ImageCaptureException;
+import androidx.camera.core.CameraControl;
+import androidx.camera.core.ResolutionInfo;
+import androidx.camera.core.ZoomState;
 import androidx.camera.core.Preview;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
@@ -30,6 +33,8 @@ public final class CameraSession {
         void onStreaming();
         void onPreviewIdle();
         void onError(boolean noCamera);
+        void onControlsChanged();
+        void onControlError();
     }
 
     public interface PhotoCallback {
@@ -48,6 +53,13 @@ public final class CameraSession {
     private ImageCapture imageCapture;
     private Camera camera;
     private Observer<CameraState> cameraObserver;
+    private Observer<ZoomState> zoomObserver;
+    private int lensFacing = CameraSelector.LENS_FACING_BACK;
+    private int flashMode = ImageCapture.FLASH_MODE_OFF;
+    private float requestedZoomRatio = 1f;
+    private boolean bothCameras;
+    private boolean cameraOpen;
+    private int zoomRequest;
     private boolean starting;
     private boolean capturing;
     private boolean cameraError;
@@ -63,7 +75,7 @@ public final class CameraSession {
         view.setScaleType(PreviewView.ScaleType.FIT_CENTER);
         view.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE);
         view.getPreviewStreamState().observe(owner, state -> {
-            if (preview != null && state == PreviewView.StreamState.STREAMING && !cameraError) {
+            if (preview != null && state == PreviewView.StreamState.STREAMING && !cameraError && cameraOpen) {
                 listener.onStreaming();
             } else {
                 listener.onPreviewIdle();
@@ -89,22 +101,40 @@ public final class CameraSession {
             starting = false;
             try {
                 provider = future.get();
-                CameraSelector selector;
-                if (provider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA)) {
-                    selector = CameraSelector.DEFAULT_BACK_CAMERA;
-                } else if (provider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA)) {
-                    selector = CameraSelector.DEFAULT_FRONT_CAMERA;
-                } else {
+                boolean back = provider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA);
+                boolean front = provider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA);
+                bothCameras = back && front;
+                if (!back && !front) {
                     listener.onError(true);
                     return;
                 }
-                preview = new Preview.Builder().build();
+                if (lensFacing == CameraSelector.LENS_FACING_BACK && !back) {
+                    lensFacing = CameraSelector.LENS_FACING_FRONT;
+                } else if (lensFacing == CameraSelector.LENS_FACING_FRONT && !front) {
+                    lensFacing = CameraSelector.LENS_FACING_BACK;
+                }
+                CameraSelector selector = new CameraSelector.Builder()
+                        .requireLensFacing(lensFacing).build();
+                preview = new Preview.Builder().setTargetRotation(view.getDisplay() == null
+                        ? android.view.Surface.ROTATION_0 : view.getDisplay().getRotation()).build();
                 preview.setSurfaceProvider(view.getSurfaceProvider());
                 imageCapture = new ImageCapture.Builder()
                         .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build();
                 camera = provider.bindToLifecycle(owner, selector, preview, imageCapture);
+                if (!camera.getCameraInfo().hasFlashUnit()) {
+                    flashMode = ImageCapture.FLASH_MODE_OFF;
+                }
+                imageCapture.setFlashMode(flashMode);
+                zoomObserver = state -> listener.onControlsChanged();
+                camera.getCameraInfo().getZoomState().observe(owner, zoomObserver);
                 cameraObserver = state -> {
+                    boolean wasOpen = cameraOpen;
+                    cameraOpen = state.getType() == CameraState.Type.OPEN;
                     cameraError = state.getError() != null;
+                    if (cameraOpen && !wasOpen) {
+                        // CameraX resets controls while inactive. Reapply the user's zoom on reopen.
+                        applyZoom(requestedZoomRatio);
+                    }
                     if (cameraError) {
                         Log.w("CameraSession", "Camera error: " + state.getError().getCode());
                         listener.onError(false);
@@ -113,6 +143,7 @@ public final class CameraSession {
                             == PreviewView.StreamState.STREAMING) {
                         listener.onStreaming();
                     }
+                    listener.onControlsChanged();
                 };
                 camera.getCameraInfo().getCameraState().observe(owner, cameraObserver);
             } catch (InterruptedException exception) {
@@ -125,10 +156,125 @@ public final class CameraSession {
         }, main);
     }
 
-    public boolean isReadyToCapture() {
-        return !capturing && !cameraError && imageCapture != null
+    public boolean isPreviewReady() {
+        return cameraOpen && !cameraError && imageCapture != null
                 && owner.getLifecycle().getCurrentState() == Lifecycle.State.RESUMED
                 && view.getPreviewStreamState().getValue() == PreviewView.StreamState.STREAMING;
+    }
+
+    public boolean isReadyToCapture() {
+        return !capturing && isPreviewReady();
+    }
+
+    public void restoreControls(int lens, int flash, float zoom) {
+        if (preview != null || starting) {
+            return;
+        }
+        lensFacing = lens == CameraSelector.LENS_FACING_FRONT
+                ? lens : CameraSelector.LENS_FACING_BACK;
+        flashMode = flash == ImageCapture.FLASH_MODE_ON || flash == ImageCapture.FLASH_MODE_AUTO
+                ? flash : ImageCapture.FLASH_MODE_OFF;
+        requestedZoomRatio = Float.isFinite(zoom) && zoom > 0 ? zoom : 1f;
+    }
+
+    public int getLensFacing() {
+        return lensFacing;
+    }
+
+    public int getFlashMode() {
+        return imageCapture == null ? flashMode : imageCapture.getFlashMode();
+    }
+
+    public boolean hasFlash() {
+        return camera != null && camera.getCameraInfo().hasFlashUnit();
+    }
+
+    public boolean canSwitchCamera() {
+        return bothCameras;
+    }
+
+    public float getRequestedZoomRatio() {
+        return requestedZoomRatio;
+    }
+
+    public ZoomState getZoomState() {
+        return camera == null ? null : camera.getCameraInfo().getZoomState().getValue();
+    }
+
+    public float getPreviewAspectRatio() {
+        ResolutionInfo info = preview == null ? null : preview.getResolutionInfo();
+        if (info == null || info.getCropRect().height() == 0) {
+            return 0f;
+        }
+        float width = info.getCropRect().width();
+        float height = info.getCropRect().height();
+        return info.getRotationDegrees() % 180 == 0 ? width / height : height / width;
+    }
+
+    public boolean switchCamera() {
+        if (!isReadyToCapture() || !bothCameras) {
+            return false;
+        }
+        int next = lensFacing == CameraSelector.LENS_FACING_BACK
+                ? CameraSelector.LENS_FACING_FRONT : CameraSelector.LENS_FACING_BACK;
+        stop();
+        lensFacing = next;
+        requestedZoomRatio = 1f;
+        start();
+        return true;
+    }
+
+    public void cycleFlash() {
+        if (!isReadyToCapture() || !hasFlash()) {
+            return;
+        }
+        flashMode = flashMode == ImageCapture.FLASH_MODE_OFF ? ImageCapture.FLASH_MODE_AUTO
+                : flashMode == ImageCapture.FLASH_MODE_AUTO ? ImageCapture.FLASH_MODE_ON
+                : ImageCapture.FLASH_MODE_OFF;
+        imageCapture.setFlashMode(flashMode);
+        listener.onControlsChanged();
+    }
+
+    public void scaleZoom(float factor) {
+        if (isReadyToCapture() && Float.isFinite(factor) && factor > 0) {
+            applyZoom(requestedZoomRatio * factor);
+        }
+    }
+
+    public void setZoomRatio(float ratio) {
+        if (isReadyToCapture() && Float.isFinite(ratio)) {
+            applyZoom(ratio);
+        }
+    }
+
+    private void applyZoom(float ratio) {
+        ZoomState state = getZoomState();
+        if (camera == null || state == null) {
+            return;
+        }
+        requestedZoomRatio = Math.max(state.getMinZoomRatio(),
+                Math.min(state.getMaxZoomRatio(), ratio));
+        Camera target = camera;
+        int session = generation;
+        int request = ++zoomRequest;
+        ListenableFuture<Void> future = target.getCameraControl().setZoomRatio(requestedZoomRatio);
+        future.addListener(() -> {
+            if (session != generation || target != camera || request != zoomRequest) {
+                return;
+            }
+            try {
+                future.get();
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+            } catch (ExecutionException exception) {
+                if (!(exception.getCause() instanceof CameraControl.OperationCanceledException)) {
+                    ZoomState current = getZoomState();
+                    requestedZoomRatio = current == null ? 1f : current.getZoomRatio();
+                    listener.onControlError();
+                }
+            }
+            listener.onControlsChanged();
+        }, main);
     }
 
     /** Returns false without starting a second request if a photo is already in progress. */
@@ -215,6 +361,11 @@ public final class CameraSession {
     public void stop() {
         generation++;
         starting = false;
+        cameraOpen = false;
+        zoomRequest++;
+        if (camera != null && zoomObserver != null) {
+            camera.getCameraInfo().getZoomState().removeObserver(zoomObserver);
+        }
         if (camera != null && cameraObserver != null) {
             camera.getCameraInfo().getCameraState().removeObserver(cameraObserver);
         }
@@ -225,5 +376,7 @@ public final class CameraSession {
         imageCapture = null;
         camera = null;
         cameraObserver = null;
+        zoomObserver = null;
+        listener.onControlsChanged();
     }
 }
