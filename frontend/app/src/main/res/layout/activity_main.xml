@@ -52,4 +52,31 @@
                 android:text="@string/enable_camera" />
         </LinearLayout>
     </FrameLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/photo_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:accessibilityLiveRegion="polite"
+            android:gravity="center"
+            android:text="@string/photo_hint"
+            android:textColor="@color/foreground"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/shutter_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:minWidth="96dp"
+            android:minHeight="56dp"
+            android:enabled="false"
+            android:text="@string/take_photo" />
+    </LinearLayout>
 </LinearLayout>

@@ -25,7 +25,7 @@ Android 使用 Java／XML。CLIP、餘弦相似度、ML Kit、FastAPI、MySQL、
 ## 程式放在哪裡
 
 Android 專案位於 `frontend/`，包含完整 Gradle wrapper 與設定。
-Java package 為 `com.yrf3.photocopilot`，目前包含 MainActivity 與 camera/CameraPreview；其下按需要加入：
+Java package 為 `com.yrf3.photocopilot`，目前包含 MainActivity、camera/CameraSession 與 camera/PhotoStore；其下按需要加入：
 
 | Package | 內容 |
 | --- | --- |
@@ -81,7 +81,7 @@ XML 沿用 Android `res/`；測試沿用 `src/test/` 和 `src/androidTest/`，�
 
 1. **架構基線（已完成）**：README、架構文件及 Git 忽略設定；清楚區分已決定與待研究項目。
 2. **Android 起始專案（已完成）**：在 frontend 建立 Java／XML 專案，提交 wrapper；組員可以編譯並啟動空白畫面。
-3. **基本相機（進行中）**：已加入權限、即時預覽與生命週期處理；下一步加入拍攝／保存，再做真機驗證。
+3. **基本相機（進行中）**：已加入權限、即時預覽、拍攝及相簿保存；接著加入基本鏡頭控制並補真機驗證。
 4. **假資料推薦流程**：場景操作、參考列表、選擇與可選疊圖；標示示範資料，測試空結果、錯誤及過期回應。
 5. **算法實驗與接入**：比較準確度、延遲、記憶體、網絡依賴與成本；記錄證據後決定執行位置，替換假資料而不重寫畫面流程。
 6. **拍攝建議與評估**：逐一加入構圖及參數建議，驗證裝置支援和提示效用，再進行整合及用戶評估。
@@ -91,5 +91,8 @@ XML 沿用 Android `res/`；測試沿用 `src/test/` 和 `src/androidTest/`，�
 
 ## 已採用的技術決定
 
-- 2026-10-19：預覽使用 CameraX 1.6.2 穩定版與 ProcessCameraProvider，選擇鏡頭後綁定 ComponentActivity 生命週期。MainActivity 管理權限／畫面，camera/CameraPreview 管理預覽與相機錯誤；沿用單一 app 模組。CameraX 可在同一位置逐步加入 ImageCapture／ImageAnalysis，不需要現在建立空介面。
+- 2026-10-19：預覽使用 CameraX 1.6.2 穩定版與 ProcessCameraProvider，選擇鏡頭後綁定 ComponentActivity 生命週期。MainActivity 管理權限／畫面，camera/CameraSession 管理預覽、拍攝與相機錯誤；沿用單一 app 模組。同一相機模組已接入 ImageCapture；ImageAnalysis 在實作場景功能時才加入。
 - 預覽使用 FIT_CENTER 保留比例，以及 COMPATIBLE 模式支援之後疊圖；較舊非同步啟動結果不覆蓋已停止或已銷毀的畫面。錯誤提示在真實 STREAMING 狀態才隱藏。
+
+- 2026-10-19：Preview 與 ImageCapture 一起綁定同一生命週期。PhotoStore 負責 MediaStore 暫存、發布與失敗清理，仍放在 camera package，不增加頂層目錄。API 29+ 使用 RELATIVE_PATH／IS_PENDING，API 26–28 使用公開圖片目錄及僅限舊版的儲存權限。用 app 自己建立的輸出串流接 CameraX，保存完成才發布，失敗刪除精確 URI。
+- 保存工作使用 application context 和共用背景執行緒，畫面銷毀後仍完成保存或清理；回呼不更新已銷毀的畫面。快門只在生命週期 RESUMED、預覽串流就緒且沒有拍攝中時啟用。
