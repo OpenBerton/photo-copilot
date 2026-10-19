@@ -11,13 +11,10 @@ import android.view.View;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.content.res.ColorStateList;
-import android.content.res.Configuration;
-import android.view.Gravity;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.SeekBar;
-import android.widget.LinearLayout;
 import com.yrf3.photocopilot.camera.ZoomRuler;
 import com.yrf3.photocopilot.camera.ZoomControl;
 import com.yrf3.photocopilot.camera.RecentPhoto;
@@ -90,17 +87,6 @@ public class MainActivity extends ComponentActivity {
                     }
                 });
         setContentView(R.layout.activity_main);
-        if (getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) {
-            LinearLayout content = findViewById(R.id.camera_content);
-            content.setOrientation(LinearLayout.HORIZONTAL);
-            findViewById(R.id.camera_preview_frame).setLayoutParams(new LinearLayout.LayoutParams(
-                    0, LinearLayout.LayoutParams.MATCH_PARENT, 1));
-            LinearLayout controls = findViewById(R.id.camera_controls);
-            int width = Math.round(264 * getResources().getDisplayMetrics().density);
-            controls.setLayoutParams(new LinearLayout.LayoutParams(width,
-                    LinearLayout.LayoutParams.MATCH_PARENT));
-            controls.setGravity(Gravity.CENTER_VERTICAL);
-        }
         status = findViewById(R.id.camera_status);
         action = findViewById(R.id.camera_action);
         messagePanel = findViewById(R.id.camera_message_panel);

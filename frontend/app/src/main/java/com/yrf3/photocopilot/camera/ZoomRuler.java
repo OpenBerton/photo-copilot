@@ -35,6 +35,7 @@ public final class ZoomRuler extends SeekBar {
     private int pointer = MotionEvent.INVALID_POINTER_ID;
     private float lastX;
     private double dragLogRatio;
+    private float contentRotation;
 
     private static final class MajorTick {
         final double position;
@@ -95,6 +96,12 @@ public final class ZoomRuler extends SeekBar {
     public float getZoomRatio() {
         if (maximum <= minimum) return minimum;
         return (float) (minimum * Math.pow(maximum / minimum, getProgress() / 1000.0));
+    }
+
+    public void setContentRotation(float degrees) {
+        if (contentRotation == degrees) return;
+        contentRotation = degrees;
+        invalidate();
     }
 
     public void showZoomRatio(float ratio) {
@@ -213,7 +220,10 @@ public final class ZoomRuler extends SeekBar {
             if (x < -24 * density || x > getWidth() + 24 * density) continue;
             ticks.setAlpha(230);
             canvas.drawLine(x, 12 * density, x, 32 * density, ticks);
+            canvas.save();
+            canvas.rotate(contentRotation, x, 47 * density);
             canvas.drawText(tick.text, x, 52 * density, labels);
+            canvas.restore();
         }
         canvas.drawPath(arrow, marker);
         canvas.drawRect(centre - density, 12 * density, centre + density, 34 * density, marker);

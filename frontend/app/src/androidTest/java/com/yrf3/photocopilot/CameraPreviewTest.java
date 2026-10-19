@@ -119,6 +119,24 @@ public class CameraPreviewTest {
             rotateAndAwait(scenario, UiAutomation.ROTATION_FREEZE_90,
                     Configuration.ORIENTATION_LANDSCAPE);
             saveScreenshot(context, "camera-preview-landscape.png");
+            tap(scenario, R.id.grid_button);
+            scenario.onActivity(activity -> assertFalse(activity.findViewById(R.id.grid_button).isSelected()));
+            tap(scenario, R.id.grid_button);
+            float landscapeZoom = dragZoomRuler(scenario);
+            awaitZoomRatio(scenario, landscapeZoom);
+            scenario.onActivity(activity -> activity.getCameraSession().setZoomRatio(selectedZoom.get()));
+            awaitZoomRatio(scenario, selectedZoom.get());
+            AtomicReference<float[]> landscapeAxis = new AtomicReference<>();
+            scenario.onActivity(activity -> landscapeAxis.set(sensorXAxis(activity)));
+            rotateAndAwait(scenario, UiAutomation.ROTATION_FREEZE_270,
+                    Configuration.ORIENTATION_LANDSCAPE);
+            awaitSensorAxis(scenario, -landscapeAxis.get()[0], -landscapeAxis.get()[1]);
+            saveScreenshot(context, "camera-preview-landscape-reverse.png");
+            Uri firstPhoto = capturePhoto(context, scenario, true, true);
+            verifyRecentPhotoOpens(scenario, firstPhoto);
+            rotateAndAwait(scenario, UiAutomation.ROTATION_FREEZE_180,
+                    Configuration.ORIENTATION_PORTRAIT);
+            saveScreenshot(context, "camera-preview-portrait-reverse.png");
             rotateAndAwait(scenario, UiAutomation.ROTATION_FREEZE_0,
                     Configuration.ORIENTATION_PORTRAIT);
             scenario.onActivity(activity -> {
@@ -129,13 +147,11 @@ public class CameraPreviewTest {
             awaitZoomRatio(scenario, selectedZoom.get());
             saveScreenshot(context);
 
-            Uri firstPhoto = capturePhoto(context, scenario, true);
-            verifyRecentPhotoOpens(scenario, firstPhoto);
             // A temporary dialog pauses the activity without stopping the camera lifecycle.
             scenario.moveToState(Lifecycle.State.STARTED);
             scenario.moveToState(Lifecycle.State.RESUMED);
             awaitCaptureReady(scenario);
-            Uri secondPhoto = capturePhoto(context, scenario, false);
+            Uri secondPhoto = capturePhoto(context, scenario, false, false);
             assertFalse("Each shutter action must save a distinct photo.",
                     firstPhoto.equals(secondPhoto));
             saveScreenshot(context);
@@ -229,19 +245,21 @@ public class CameraPreviewTest {
     }
 
     private static float dragZoomRuler(ActivityScenario<MainActivity> scenario) throws Exception {
-        float[] point = new float[4];
+        float[] point = new float[5];
         int[] previewSize = new int[2];
         scenario.onActivity(activity -> {
             View ruler = activity.findViewById(activity.getResources().getIdentifier(
                     "zoom_slider", "id", activity.getPackageName()));
             assertTrue(ruler instanceof SeekBar);
             assertTrue(ruler.isEnabled());
-            int[] location = new int[2];
-            ruler.getLocationOnScreen(location);
-            point[0] = location[0] + ruler.getWidth() * 0.7f;
-            point[1] = location[0] + ruler.getWidth() * 0.3f;
-            point[2] = location[1] + ruler.getHeight() / 2f;
-            point[3] = activity.getCameraSession().getZoomState().getZoomRatio();
+            android.graphics.Rect area = new android.graphics.Rect();
+            assertTrue(activity.findViewById(R.id.zoom_control).getGlobalVisibleRect(area));
+            int rotation = ruler.getDisplay().getRotation();
+            float[] from = rulerPoint(area, rotation, 0.7f);
+            float[] to = rulerPoint(area, rotation, 0.3f);
+            point[0] = from[0]; point[1] = from[1];
+            point[2] = to[0]; point[3] = to[1];
+            point[4] = activity.getCameraSession().getZoomState().getZoomRatio();
             View preview = activity.findViewById(R.id.preview_view);
             previewSize[0] = preview.getWidth();
             previewSize[1] = preview.getHeight();
@@ -252,7 +270,8 @@ public class CameraPreviewTest {
             int action = index == 0 ? MotionEvent.ACTION_DOWN
                     : index == 8 ? MotionEvent.ACTION_UP : MotionEvent.ACTION_MOVE;
             MotionEvent event = MotionEvent.obtain(start, SystemClock.uptimeMillis(), action,
-                    point[0] + (point[1] - point[0]) * index / 8f, point[2], 0);
+                    point[0] + (point[2] - point[0]) * index / 8f,
+                    point[1] + (point[3] - point[1]) * index / 8f, 0);
             try {
                 InstrumentationRegistry.getInstrumentation().sendPointerSync(event);
             } finally {
@@ -270,7 +289,7 @@ public class CameraPreviewTest {
                     assertTrue(activity.findViewById(R.id.switch_camera).isShown());
                 });
                 saveScreenshot(InstrumentationRegistry.getInstrumentation().getTargetContext(),
-                        "zoom-ruler-active.png");
+                        previewSize[0] > previewSize[1] ? "zoom-ruler-landscape.png" : "zoom-ruler-active.png");
             }
         }
         AtomicReference<Float> requested = new AtomicReference<>();
@@ -280,8 +299,34 @@ public class CameraPreviewTest {
             requested.set(((com.yrf3.photocopilot.camera.ZoomRuler)
                     activity.findViewById(R.id.zoom_slider)).getZoomRatio());
         });
-        assertTrue("Dragging the ruler left increases the requested zoom.", requested.get() > point[3] + 0.1f);
+        assertTrue("Dragging the ruler towards the device's left increases zoom.", requested.get() > point[4] + 0.1f);
         return requested.get();
+    }
+
+    private static float[] rulerPoint(android.graphics.Rect area, int rotation, float fraction) {
+        switch (rotation) {
+            case android.view.Surface.ROTATION_90:
+                return new float[] {area.exactCenterX(), area.bottom - area.height() * fraction};
+            case android.view.Surface.ROTATION_180:
+                return new float[] {area.right - area.width() * fraction, area.exactCenterY()};
+            case android.view.Surface.ROTATION_270:
+                return new float[] {area.exactCenterX(), area.top + area.height() * fraction};
+            default: return new float[] {area.left + area.width() * fraction, area.exactCenterY()};
+        }
+    }
+
+    private static void tap(ActivityScenario<MainActivity> scenario, int id) {
+        android.graphics.Rect area = new android.graphics.Rect();
+        scenario.onActivity(activity -> assertTrue(activity.findViewById(id).getGlobalVisibleRect(area)));
+        long start = SystemClock.uptimeMillis();
+        for (int action : new int[] {MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP}) {
+            MotionEvent event = MotionEvent.obtain(start, SystemClock.uptimeMillis(), action,
+                    area.exactCenterX(), area.exactCenterY(), 0);
+            try {
+                InstrumentationRegistry.getInstrumentation().sendPointerSync(event);
+            } finally { event.recycle(); }
+        }
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
     }
 
     private static void verifyRecentPhotoOpens(ActivityScenario<MainActivity> scenario, Uri uri) {
@@ -317,7 +362,8 @@ public class CameraPreviewTest {
         AtomicBoolean rotated = new AtomicBoolean();
         do {
             scenario.onActivity(activity -> rotated.set(activity.getResources().getConfiguration()
-                    .orientation == expectedOrientation));
+                    .orientation == expectedOrientation && activity.findViewById(R.id.main)
+                    .getDisplay().getRotation() == rotation));
             if (rotated.get()) {
                 awaitCaptureReady(scenario);
                 return;
@@ -325,6 +371,31 @@ public class CameraPreviewTest {
             SystemClock.sleep(100);
         } while (SystemClock.elapsedRealtime() < deadline);
         fail("The device did not rotate to the requested orientation.");
+    }
+
+    private static float[] sensorXAxis(MainActivity activity) {
+        android.graphics.Matrix matrix = ((PreviewView) activity.findViewById(R.id.preview_view))
+                .getSensorToViewTransform();
+        assertNotNull("The preview has a sensor transform.", matrix);
+        float[] values = new float[9];
+        matrix.getValues(values);
+        float x = values[android.graphics.Matrix.MSCALE_X];
+        float y = values[android.graphics.Matrix.MSKEW_Y];
+        float length = (float) Math.hypot(x, y);
+        assertTrue(length > 0);
+        return new float[] {x / length, y / length};
+    }
+
+    private static void awaitSensorAxis(ActivityScenario<MainActivity> scenario, float x, float y) {
+        long deadline = SystemClock.elapsedRealtime() + 5_000;
+        AtomicReference<float[]> actual = new AtomicReference<>();
+        do {
+            scenario.onActivity(activity -> actual.set(sensorXAxis(activity)));
+            if (Math.abs(actual.get()[0] - x) < 0.01f && Math.abs(actual.get()[1] - y) < 0.01f) return;
+            SystemClock.sleep(50);
+        } while (SystemClock.elapsedRealtime() < deadline);
+        fail("The preview must turn 180 degrees between the two landscape directions; expected axis "
+                + x + "," + y + " but was " + actual.get()[0] + "," + actual.get()[1]);
     }
 
     private static void awaitZoomRatio(ActivityScenario<MainActivity> scenario, float expected) {
@@ -413,7 +484,7 @@ public class CameraPreviewTest {
     }
 
     private static Uri capturePhoto(Context context, ActivityScenario<MainActivity> scenario,
-            boolean doubleTap) throws Exception {
+            boolean doubleTap, boolean landscape) throws Exception {
         Set<Uri> photosBeforeCapture = queryPhotoUris(context);
         AtomicReference<Drawable> previousThumbnail = new AtomicReference<>();
         scenario.onActivity(activity -> {
@@ -425,12 +496,9 @@ public class CameraPreviewTest {
             assertNotNull("A shutter button must be available.", shutter);
             assertTrue(shutter.isShown());
             assertTrue("The camera must be ready before taking a photo.", shutter.isEnabled());
-            shutter.performClick();
-            if (doubleTap) {
-                // Simulate two rapid taps before CameraX can finish saving the first image.
-                shutter.performClick();
-            }
         });
+        tap(scenario, R.id.shutter_button);
+        if (doubleTap) tap(scenario, R.id.shutter_button);
         awaitPhotoSaved(scenario, previousThumbnail.get());
         awaitStreaming(scenario);
 
@@ -453,6 +521,14 @@ public class CameraPreviewTest {
         }
         assertTrue("The saved JPEG must have a valid width.", options.outWidth > 0);
         assertTrue("The saved JPEG must have a valid height.", options.outHeight > 0);
+        int rotation;
+        try (InputStream input = resolver.openInputStream(photo)) {
+            rotation = new androidx.exifinterface.media.ExifInterface(input).getRotationDegrees();
+        }
+        int uprightWidth = rotation % 180 == 0 ? options.outWidth : options.outHeight;
+        int uprightHeight = rotation % 180 == 0 ? options.outHeight : options.outWidth;
+        assertEquals("The photo's pixels and EXIF agree with the capture orientation.",
+                landscape, uprightWidth > uprightHeight);
         assertEquals("The saved image data must be a JPEG.", "image/jpeg", options.outMimeType);
         options.inJustDecodeBounds = false;
         options.inSampleSize = 1;
@@ -595,6 +671,8 @@ public class CameraPreviewTest {
 
     private static void saveScreenshot(Context context, String filename) throws Exception {
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+        // Wait for the system's rotation transition before inspecting the composed frame.
+        SystemClock.sleep(context.getResources().getInteger(android.R.integer.config_longAnimTime) * 2L);
         Bitmap screenshot = InstrumentationRegistry.getInstrumentation()
                 .getUiAutomation().takeScreenshot();
         assertNotNull("The device must allow a screenshot of the camera preview.", screenshot);
