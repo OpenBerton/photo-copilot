@@ -3,7 +3,7 @@
 ## 原則與現況
 
 依據 2026-09-11 FYP proposal 的功能需求，採用單一 repository，按功能分組。
-目前只有文件與 Git 設定，以下程式目錄及介面均在實作相關功能時才建立。
+目前已建立 frontend Android 起始專案；以下功能 package 及介面均在實作相關功能時才建立。
 沒有程式就不建立空資料夾；不預建 backend、models、utils、services 或多個 Gradle module。
 
 Android 使用 Java／XML。CLIP、餘弦相似度、ML Kit、FastAPI、MySQL、Qwen／vLLM 保留為 proposal 的候選方案，並非已決定的依賴。
@@ -24,8 +24,8 @@ Android 使用 Java／XML。CLIP、餘弦相似度、ML Kit、FastAPI、MySQL、
 
 ## 程式放在哪裡
 
-建立 Android 專案時放入 `frontend/`，包含完整 Gradle wrapper 與設定。
-Java package 的正式名稱在建立 Android 專案時設定；其下按需要加入：
+Android 專案位於 `frontend/`，包含完整 Gradle wrapper 與設定。
+Java package 為 `com.yrf3.photocopilot`，目前只有 MainActivity；其下按需要加入：
 
 | Package | 內容 |
 | --- | --- |
@@ -79,12 +79,12 @@ XML 沿用 Android `res/`；測試沿用 `src/test/` 和 `src/androidTest/`，�
 
 ## 開發次序與完成標準
 
-1. **架構基線（本次）**：README、架構文件及 Git 忽略設定；清楚區分已決定與待研究項目。
-2. **Android 起始專案**：在 frontend 建立 Java／XML 專案，提交 wrapper；組員可以編譯並啟動空白畫面。
+1. **架構基線（已完成）**：README、架構文件及 Git 忽略設定；清楚區分已決定與待研究項目。
+2. **Android 起始專案（本次）**：在 frontend 建立 Java／XML 專案，提交 wrapper；組員可以編譯並啟動空白畫面。
 3. **基本相機**：真機驗證預覽、拍攝、保存、拒絕權限及返回 App。
 4. **假資料推薦流程**：場景操作、參考列表、選擇與可選疊圖；標示示範資料，測試空結果、錯誤及過期回應。
 5. **算法實驗與接入**：比較準確度、延遲、記憶體、網絡依賴與成本；記錄證據後決定執行位置，替換假資料而不重寫畫面流程。
 6. **拍攝建議與評估**：逐一加入構圖及參數建議，驗證裝置支援和提示效用，再進行整合及用戶評估。
 
 每一步可拆數個小 PR。技術決定先在本文件記錄日期、原因與證據，數量多時才獨立拆文件。
-文件變更檢查連結、路徑及 git diff --check。Android 建立後以實際建置設定確定測試命令；本機建置穩定後再加入 GitHub Actions。
+文件變更檢查連結、路徑及 git diff --check。Android 建置及 lint 命令見 README；後續有需要再加入 GitHub Actions。
