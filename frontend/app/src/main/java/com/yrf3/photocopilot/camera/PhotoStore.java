@@ -21,6 +21,7 @@ final class PhotoStore {
     // Process-wide so a short save can finish even when its Activity is recreated.
     static final Executor IO = Executors.newSingleThreadExecutor();
     private final ContentResolver resolver;
+    private final android.content.SharedPreferences recent;
 
     static final class PendingPhoto {
         final Uri uri;
@@ -34,6 +35,8 @@ final class PhotoStore {
 
     PhotoStore(Context context) {
         resolver = context.getApplicationContext().getContentResolver();
+        recent = context.getApplicationContext().getSharedPreferences(
+                RecentPhoto.PREFERENCES, Context.MODE_PRIVATE);
     }
 
     PendingPhoto create() throws IOException {
@@ -79,6 +82,7 @@ final class PhotoStore {
                 throw new IOException("Cannot publish photo");
             }
         }
+        recent.edit().putString(RecentPhoto.URI_KEY, photo.uri.toString()).apply();
     }
 
     void discard(PendingPhoto photo) {

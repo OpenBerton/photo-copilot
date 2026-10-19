@@ -25,7 +25,7 @@ Android 使用 Java／XML。CLIP、餘弦相似度、ML Kit、FastAPI、MySQL、
 ## 程式放在哪裡
 
 Android 專案位於 `frontend/`，包含完整 Gradle wrapper 與設定。
-Java package 為 `com.yrf3.photocopilot`，目前包含 MainActivity、camera/CameraSession 與 camera/PhotoStore；其下按需要加入：
+Java package 為 `com.yrf3.photocopilot`，目前包含 MainActivity，以及 camera 內的 CameraSession、PhotoStore、CompositionGrid、ZoomControl、ZoomRuler 和 RecentPhoto；其下按需要加入：
 
 | Package | 內容 |
 | --- | --- |
@@ -81,7 +81,7 @@ XML 沿用 Android `res/`；測試沿用 `src/test/` 和 `src/androidTest/`，�
 
 1. **架構基線（已完成）**：README、架構文件及 Git 忽略設定；清楚區分已決定與待研究項目。
 2. **Android 起始專案（已完成）**：在 frontend 建立 Java／XML 專案，提交 wrapper；組員可以編譯並啟動空白畫面。
-3. **基本相機（進行中）**：已加入權限、即時預覽、拍攝及相簿保存；接著加入基本鏡頭控制並補真機驗證。
+3. **基本相機（進行中）**：已加入權限、即時預覽、拍攝及相簿保存；已加入鏡頭切換、縮放、閃光燈及九宮格；持續補真機驗證。
 4. **假資料推薦流程**：場景操作、參考列表、選擇與可選疊圖；標示示範資料，測試空結果、錯誤及過期回應。
 5. **算法實驗與接入**：比較準確度、延遲、記憶體、網絡依賴與成本；記錄證據後決定執行位置，替換假資料而不重寫畫面流程。
 6. **拍攝建議與評估**：逐一加入構圖及參數建議，驗證裝置支援和提示效用，再進行整合及用戶評估。
@@ -96,3 +96,9 @@ XML 沿用 Android `res/`；測試沿用 `src/test/` 和 `src/androidTest/`，�
 
 - 2026-10-19：Preview 與 ImageCapture 一起綁定同一生命週期。PhotoStore 負責 MediaStore 暫存、發布與失敗清理，仍放在 camera package，不增加頂層目錄。API 29+ 使用 RELATIVE_PATH／IS_PENDING，API 26–28 使用公開圖片目錄及僅限舊版的儲存權限。用 app 自己建立的輸出串流接 CameraX，保存完成才發布，失敗刪除精確 URI。
 - 保存工作使用 application context 和共用背景執行緒，畫面銷毀後仍完成保存或清理；回呼不更新已銷毀的畫面。快門只在生命週期 RESUMED、預覽串流就緒且沒有拍攝中時啟用。
+
+- 2026-10-20：基本控制沿用 CameraSession，經 CameraX 能力查詢決定按鈕是否可用。縮放累積請求倍率並限制硬件範圍，忽略已過期操作回呼；相機重新開啟時重新套用倍率，切鏡時重設。閃光使用 ImageCapture flash mode，不開啟 torch。
+- CompositionGrid 沿用 FIT_CENTER 的預覽比例，以公開 ResolutionInfo 的 crop rect 及旋轉資料計算可見影像範圍，避免跨黑邊，也不使用實驗或受限制的座標轉換 API。控件及疊圖放在現有 camera 功能內，沒有新增根目錄或服務。
+- 2026-10-20：倍率與 ZoomRuler 放在預覽外、快門上方；直向控制區在底部，橫向在右側。RecentPhoto 只背景載入本 App 最近保存的照片 URI；沿用 SeekBar 控件和系統圖片檢視器。Android 8／9 縮圖使用 AndroidX ExifInterface 修正方向。純黑背景由主題、根畫面及控制區提供，配合系統 Insets 和 FIT_CENTER，與鏡頭解析度分離，不固定預覽像素大小。
+- ZoomRuler 保留 SeekBar 的鍵盤與無障礙操作，自訂直線刻度及相對拖動：中央指示固定，刻度按對數倍率移動，左右兩端以漸層淡出。同一倍增使用相同 dp 拖動距離，倍率由 CameraX 的實際範圍限制；程序同步畫面不產生新的使用者縮放請求。
+- ZoomControl 在同一個固定高度區域切換原生倍率按鈕和 ZoomRuler：輕觸按鈕選倍率，水平拖動超過系統手勢門檻才攔截，取消按鈕點按並把完整拖動交給刻度。放手、取消、停用或離開畫面均回到按鈕，不改變預覽大小；無障礙展開／收合仍可使用細調。
