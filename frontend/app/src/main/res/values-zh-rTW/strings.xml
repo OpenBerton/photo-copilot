@@ -10,7 +10,6 @@
     <string name="camera_permission_explanation">允許使用相機，即可預覽和拍照。照片只會保存在你的裝置。</string>
     <string name="take_photo">拍照</string>
     <string name="photo_saving">儲存中…</string>
-    <string name="photo_saved">照片已存入相簿。</string>
     <string name="photo_error">未能儲存照片。請檢查可用儲存空間，然後重試。</string>
     <string name="photo_storage_permission">允許儲存權限，即可將照片存入相簿。</string>
     <string name="switch_camera">切換前後鏡頭</string>
@@ -21,4 +20,7 @@
     <string name="grid_on">隱藏九宮格</string>
     <string name="zoom_description">縮放 %1$.1f 倍。點按切換，長按重設。</string>
     <string name="camera_control_error">未能變更相機設定，請重試。</string>
+    <string name="recent_photo">檢視最近保存的相片</string>
+    <string name="zoom_adjust">調整縮放倍率</string>
+    <string name="photo_cannot_open">沒有可用的照片檢視器，相片仍已存入相簿。</string>
 </resources>

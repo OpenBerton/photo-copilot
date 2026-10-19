@@ -3,11 +3,12 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:background="@color/background">
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="56dp"
+        android:layout_height="48dp"
         android:gravity="center_vertical"
         android:paddingStart="12dp"
         android:paddingEnd="12dp">
@@ -17,13 +18,6 @@
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:padding="12dp" android:src="@drawable/ic_flash_off"
             android:contentDescription="@string/flash_off" />
-        <Button
-            android:id="@+id/zoom_button"
-            android:layout_width="wrap_content" android:layout_height="48dp"
-            android:minWidth="64dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:text="@string/zoom_default" android:textColor="@color/foreground"
-            android:textAllCaps="false" android:contentDescription="@string/zoom_default" />
         <Space android:layout_width="0dp" android:layout_height="1dp"
             android:layout_weight="1" />
         <ImageButton
@@ -32,15 +26,14 @@
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:padding="12dp" android:src="@drawable/ic_grid"
             android:contentDescription="@string/grid_off" />
-        <ImageButton
-            android:id="@+id/switch_camera"
-            android:layout_width="48dp" android:layout_height="48dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:padding="12dp" android:src="@drawable/ic_switch_camera"
-            android:contentDescription="@string/switch_camera" />
     </LinearLayout>
 
+    <LinearLayout
+        android:id="@+id/camera_content"
+        android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="1" android:orientation="vertical">
     <FrameLayout
+        android:id="@+id/camera_preview_frame"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
@@ -49,12 +42,19 @@
             android:id="@+id/preview_view"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:importantForAccessibility="no" />
+            android:importantForAccessibility="no"
+            android:background="@color/background" />
         <com.yrf3.photocopilot.camera.CompositionGrid
             android:id="@+id/composition_grid"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:visibility="gone" />
+
+        <View
+            android:id="@+id/capture_flash"
+            android:layout_width="match_parent" android:layout_height="match_parent"
+            android:background="@android:color/white" android:visibility="gone"
+            android:importantForAccessibility="no" />
 
         <TextView
             android:id="@+id/photo_status"
@@ -63,7 +63,7 @@
             android:layout_gravity="bottom|center_horizontal"
             android:layout_margin="16dp"
             android:accessibilityLiveRegion="polite"
-            android:background="#CC101820"
+            android:background="#CC000000"
             android:gravity="center"
             android:padding="10dp"
             android:textColor="@color/foreground"
@@ -98,18 +98,58 @@
                 android:text="@string/enable_camera" />
         </LinearLayout>
     </FrameLayout>
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="112dp">
-
-        <ImageButton
-            android:id="@+id/shutter_button"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:layout_gravity="center"
-            android:background="@drawable/shutter_background"
-            android:contentDescription="@string/take_photo"
-            android:enabled="false"
-            android:padding="0dp" />
-    </FrameLayout>
+    <LinearLayout
+        android:id="@+id/camera_controls"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:background="@color/background">
+        <Button
+            android:id="@+id/zoom_button"
+            android:layout_width="64dp" android:layout_height="48dp"
+            android:layout_gravity="center_horizontal"
+            android:minHeight="0dp" android:padding="0dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:text="@string/zoom_default" android:textColor="@color/foreground"
+            android:textAllCaps="false" android:contentDescription="@string/zoom_default" />
+        <com.yrf3.photocopilot.camera.ZoomRuler
+            android:id="@+id/zoom_slider"
+            android:layout_width="match_parent" android:layout_height="48dp"
+            android:layout_marginStart="24dp" android:layout_marginEnd="24dp"
+            android:paddingStart="12dp" android:paddingEnd="12dp"
+            android:thumb="@drawable/zoom_thumb"
+            android:progressTint="@color/foreground"
+            android:progressBackgroundTint="#505050"
+            android:contentDescription="@string/zoom_adjust" />
+        <FrameLayout android:layout_width="match_parent" android:layout_height="88dp" android:layoutDirection="ltr">
+            <ImageButton
+                android:id="@+id/recent_photo"
+                android:layout_width="56dp" android:layout_height="56dp"
+                android:layout_gravity="center_vertical|start"
+                android:layout_marginStart="24dp"
+                android:background="@drawable/thumbnail_border"
+                android:src="@drawable/ic_photo" android:padding="2dp"
+                android:scaleType="centerCrop"
+                android:enabled="false" android:alpha="0.35"
+                android:contentDescription="@string/recent_photo" />
+            <ImageButton
+                android:id="@+id/shutter_button"
+                android:layout_width="72dp" android:layout_height="72dp"
+                android:layout_gravity="center"
+                android:background="@drawable/shutter_background"
+                android:contentDescription="@string/take_photo"
+                android:enabled="false" android:padding="0dp" />
+            <ProgressBar
+                android:id="@+id/save_progress"
+                android:layout_width="80dp" android:layout_height="80dp"
+                android:layout_gravity="center" android:indeterminateTint="@color/foreground"
+                android:visibility="gone" android:importantForAccessibility="no" />
+            <ImageButton
+                android:id="@+id/switch_camera"
+                android:layout_width="56dp" android:layout_height="56dp"
+                android:layout_gravity="center_vertical|end" android:layout_marginEnd="24dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:padding="14dp" android:src="@drawable/ic_switch_camera"
+                android:contentDescription="@string/switch_camera" />
+        </FrameLayout>
+    </LinearLayout>
+    </LinearLayout>
 </LinearLayout>

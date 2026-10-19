@@ -25,7 +25,7 @@ Android 使用 Java／XML。CLIP、餘弦相似度、ML Kit、FastAPI、MySQL、
 ## 程式放在哪裡
 
 Android 專案位於 `frontend/`，包含完整 Gradle wrapper 與設定。
-Java package 為 `com.yrf3.photocopilot`，目前包含 MainActivity、camera/CameraSession、camera/PhotoStore 及 camera/CompositionGrid；其下按需要加入：
+Java package 為 `com.yrf3.photocopilot`，目前包含 MainActivity，以及 camera 內的 CameraSession、PhotoStore、CompositionGrid、ZoomRuler 和 RecentPhoto；其下按需要加入：
 
 | Package | 內容 |
 | --- | --- |
@@ -99,3 +99,4 @@ XML 沿用 Android `res/`；測試沿用 `src/test/` 和 `src/androidTest/`，�
 
 - 2026-10-20：基本控制沿用 CameraSession，經 CameraX 能力查詢決定按鈕是否可用。縮放累積請求倍率並限制硬件範圍，忽略已過期操作回呼；相機重新開啟時重新套用倍率，切鏡時重設。閃光使用 ImageCapture flash mode，不開啟 torch。
 - CompositionGrid 沿用 FIT_CENTER 的預覽比例，以公開 ResolutionInfo 的 crop rect 及旋轉資料計算可見影像範圍，避免跨黑邊，也不使用實驗或受限制的座標轉換 API。控件及疊圖放在現有 camera 功能內，沒有新增根目錄或服務。
+- 2026-10-20：倍率與 ZoomRuler 放在預覽外、快門上方；直向控制區在底部，橫向在右側。RecentPhoto 只背景載入本 App 最近保存的照片 URI；沿用原生 SeekBar 操作和系統圖片檢視器。Android 8／9 縮圖使用 AndroidX ExifInterface 修正方向。純黑背景由主題、根畫面及控制區提供，配合系統 Insets 和 FIT_CENTER，與鏡頭解析度分離，不固定預覽像素大小。

@@ -11,9 +11,15 @@ import android.view.View;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.content.res.ColorStateList;
+import android.content.res.Configuration;
+import android.view.Gravity;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.TextView;
+import android.widget.SeekBar;
+import android.widget.LinearLayout;
+import com.yrf3.photocopilot.camera.ZoomRuler;
+import com.yrf3.photocopilot.camera.RecentPhoto;
 
 import androidx.activity.ComponentActivity;
 import androidx.activity.result.ActivityResultLauncher;
@@ -49,6 +55,10 @@ public class MainActivity extends ComponentActivity {
     private ImageButton flash;
     private ImageButton gridButton;
     private Button zoomButton;
+    private ZoomRuler zoomSlider;
+    private RecentPhoto recentPhoto;
+    private View captureFlash;
+    private View saveProgress;
     private CompositionGrid grid;
     private boolean gridVisible;
     private final Runnable hidePhotoStatus = () -> photoStatus.setVisibility(View.GONE);
@@ -74,6 +84,17 @@ public class MainActivity extends ComponentActivity {
                     }
                 });
         setContentView(R.layout.activity_main);
+        if (getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            LinearLayout content = findViewById(R.id.camera_content);
+            content.setOrientation(LinearLayout.HORIZONTAL);
+            findViewById(R.id.camera_preview_frame).setLayoutParams(new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.MATCH_PARENT, 1));
+            LinearLayout controls = findViewById(R.id.camera_controls);
+            int width = Math.round(264 * getResources().getDisplayMetrics().density);
+            controls.setLayoutParams(new LinearLayout.LayoutParams(width,
+                    LinearLayout.LayoutParams.MATCH_PARENT));
+            controls.setGravity(Gravity.CENTER_VERTICAL);
+        }
         status = findViewById(R.id.camera_status);
         action = findViewById(R.id.camera_action);
         messagePanel = findViewById(R.id.camera_message_panel);
@@ -85,7 +106,27 @@ public class MainActivity extends ComponentActivity {
         flash = findViewById(R.id.flash_button);
         gridButton = findViewById(R.id.grid_button);
         zoomButton = findViewById(R.id.zoom_button);
+        zoomSlider = findViewById(R.id.zoom_slider);
+        captureFlash = findViewById(R.id.capture_flash);
+        saveProgress = findViewById(R.id.save_progress);
+        recentPhoto = new RecentPhoto(this, findViewById(R.id.recent_photo),
+                () -> showPhotoStatus(R.string.photo_cannot_open, true));
+        zoomSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar slider, int progress, boolean fromUser) {
+                if (fromUser && cameraSession != null) cameraSession.setZoomRatio(zoomSlider.getZoomRatio());
+            }
+            @Override public void onStartTrackingTouch(SeekBar slider) { }
+            @Override public void onStopTrackingTouch(SeekBar slider) { }
+        });
         grid = findViewById(R.id.composition_grid);
+        androidx.core.view.WindowInsetsControllerCompat systemBars =
+                androidx.core.view.WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        systemBars.setAppearanceLightStatusBars(false);
+        systemBars.setAppearanceLightNavigationBars(false);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            getWindow().setNavigationBarContrastEnforced(false);
+        }
         gridVisible = savedInstanceState != null && savedInstanceState.getBoolean("grid");
         switchCamera.setOnClickListener(view -> cameraSession.switchCamera());
         flash.setOnClickListener(view -> cameraSession.cycleFlash());
@@ -201,6 +242,7 @@ public class MainActivity extends ComponentActivity {
     protected void onResume() {
         super.onResume();
         updateCamera();
+        recentPhoto.reload();
     }
 
     @Override
@@ -209,6 +251,7 @@ public class MainActivity extends ComponentActivity {
         setControlEnabled(switchCamera, false);
         setControlEnabled(flash, false);
         setControlEnabled(zoomButton, false);
+        setControlEnabled(zoomSlider, false);
         super.onPause();
     }
 
@@ -277,6 +320,7 @@ public class MainActivity extends ComponentActivity {
             shutter.setContentDescription(getString(captureInProgress ? R.string.photo_saving
                     : storageNeedsSettings() ? R.string.open_settings : R.string.take_photo));
         }
+        saveProgress.setVisibility(captureInProgress ? View.VISIBLE : View.GONE);
         updateControls();
     }
 
@@ -306,7 +350,11 @@ public class MainActivity extends ComponentActivity {
         ZoomState state = cameraSession.getZoomState();
         setControlEnabled(zoomButton, ready && state != null
                 && state.getMaxZoomRatio() - state.getMinZoomRatio() > 0.001f);
+        setControlEnabled(zoomSlider, zoomButton.isEnabled());
+        zoomSlider.setZoomRange(state == null ? 1f : state.getMinZoomRatio(),
+                state == null ? 1f : state.getMaxZoomRatio());
         float ratio = state == null ? 1f : state.getZoomRatio();
+        if (!zoomSlider.isPressed()) zoomSlider.showZoomRatio(ratio);
         zoomButton.setText(String.format(Locale.getDefault(),
                 Math.abs(ratio - Math.round(ratio)) < 0.05f ? "%.0f×" : "%.1f×", ratio));
         zoomButton.setContentDescription(getString(R.string.zoom_description, ratio));
@@ -367,13 +415,23 @@ public class MainActivity extends ComponentActivity {
 
     private void capturePhoto() {
         captureInProgress = true;
-        showPhotoStatus(R.string.photo_saving, false);
+        photoStatus.removeCallbacks(hidePhotoStatus);
+        photoStatus.setVisibility(View.GONE);
         updateShutter();
         boolean started = cameraSession.takePhoto(new CameraSession.PhotoCallback() {
             @Override
+            public void onCaptureStarted() {
+                captureFlash.animate().cancel();
+                captureFlash.setAlpha(0.55f);
+                captureFlash.setVisibility(View.VISIBLE);
+                captureFlash.animate().alpha(0f).setDuration(160)
+                        .withEndAction(() -> captureFlash.setVisibility(View.GONE)).start();
+            }
+
+            @Override
             public void onSaved(Uri uri) {
                 captureInProgress = false;
-                showPhotoStatus(R.string.photo_saved, true);
+                recentPhoto.show(uri, true);
                 updateShutter();
             }
 
@@ -394,6 +452,8 @@ public class MainActivity extends ComponentActivity {
     @Override
     protected void onDestroy() {
         photoStatus.removeCallbacks(hidePhotoStatus);
+        captureFlash.animate().cancel();
+        recentPhoto.close();
         if (cameraSession != null) {
             cameraSession.stop();
         }

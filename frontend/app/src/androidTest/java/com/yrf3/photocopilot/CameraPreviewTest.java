@@ -7,11 +7,17 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import android.Manifest;
+import android.app.Instrumentation;
+import android.app.Activity;
+import android.app.UiAutomation;
+import android.content.Intent;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.BitmapDrawable;
+import android.widget.SeekBar;
 import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.view.MotionEvent;
 import androidx.camera.core.CameraSelector;
@@ -110,9 +116,10 @@ public class CameraPreviewTest {
                 assertTrue(activity.findViewById(R.id.grid_button).isSelected());
                 assertEquals(View.VISIBLE, activity.findViewById(R.id.composition_grid).getVisibility());
             });
-            rotateAndAwait(scenario, ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE,
+            rotateAndAwait(scenario, UiAutomation.ROTATION_FREEZE_90,
                     Configuration.ORIENTATION_LANDSCAPE);
-            rotateAndAwait(scenario, ActivityInfo.SCREEN_ORIENTATION_PORTRAIT,
+            saveScreenshot(context, "camera-preview-landscape.png");
+            rotateAndAwait(scenario, UiAutomation.ROTATION_FREEZE_0,
                     Configuration.ORIENTATION_PORTRAIT);
             scenario.onActivity(activity -> {
                 assertEquals((int) selectedLens.get(), activity.getCameraSession().getLensFacing());
@@ -123,6 +130,7 @@ public class CameraPreviewTest {
             saveScreenshot(context);
 
             Uri firstPhoto = capturePhoto(context, scenario, true);
+            verifyRecentPhotoOpens(scenario, firstPhoto);
             // A temporary dialog pauses the activity without stopping the camera lifecycle.
             scenario.moveToState(Lifecycle.State.STARTED);
             scenario.moveToState(Lifecycle.State.RESUMED);
@@ -130,7 +138,10 @@ public class CameraPreviewTest {
             Uri secondPhoto = capturePhoto(context, scenario, false);
             assertFalse("Each shutter action must save a distinct photo.",
                     firstPhoto.equals(secondPhoto));
+            saveScreenshot(context);
         } finally {
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .setRotation(UiAutomation.ROTATION_UNFREEZE);
             // Preserve existing gallery photos, including photos from earlier test runs.
             Set<Uri> photosCreatedByTest = queryPhotoUris(context);
             photosCreatedByTest.removeAll(photosBeforeTest);
@@ -201,12 +212,68 @@ public class CameraPreviewTest {
             awaitZoom(scenario, true);
             scenario.onActivity(activity -> activity.findViewById(R.id.zoom_button).performClick());
             awaitZoom(scenario, false);
+            dragZoomRuler(scenario);
+            awaitZoom(scenario, false);
+        }
+    }
+
+    private static void dragZoomRuler(ActivityScenario<MainActivity> scenario) {
+        float[] point = new float[4];
+        scenario.onActivity(activity -> {
+            View ruler = activity.findViewById(activity.getResources().getIdentifier(
+                    "zoom_slider", "id", activity.getPackageName()));
+            assertTrue(ruler instanceof SeekBar);
+            assertTrue(ruler.isEnabled());
+            int[] location = new int[2];
+            ruler.getLocationOnScreen(location);
+            point[0] = location[0] + ruler.getWidth() * 0.2f;
+            point[1] = location[0] + ruler.getWidth() * 0.7f;
+            point[2] = location[1] + ruler.getHeight() / 2f;
+        });
+        long start = SystemClock.uptimeMillis();
+        for (int index = 0; index <= 8; index++) {
+            int action = index == 0 ? MotionEvent.ACTION_DOWN
+                    : index == 8 ? MotionEvent.ACTION_UP : MotionEvent.ACTION_MOVE;
+            MotionEvent event = MotionEvent.obtain(start, SystemClock.uptimeMillis(), action,
+                    point[0] + (point[1] - point[0]) * index / 8f, point[2], 0);
+            try {
+                InstrumentationRegistry.getInstrumentation().sendPointerSync(event);
+            } finally {
+                event.recycle();
+            }
+            SystemClock.sleep(30);
+        }
+    }
+
+    private static void verifyRecentPhotoOpens(ActivityScenario<MainActivity> scenario, Uri uri) {
+        AtomicReference<Intent> opened = new AtomicReference<>();
+        Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
+        Instrumentation.ActivityMonitor monitor = new Instrumentation.ActivityMonitor() {
+            @Override
+            public Instrumentation.ActivityResult onStartActivity(Intent intent) {
+                if (Intent.ACTION_VIEW.equals(intent.getAction())) {
+                    opened.set(intent);
+                    return new Instrumentation.ActivityResult(Activity.RESULT_OK, null);
+                }
+                return null;
+            }
+        };
+        instrumentation.addMonitor(monitor);
+        try {
+            scenario.onActivity(activity -> activity.findViewById(activity.getResources().getIdentifier(
+                    "recent_photo", "id", activity.getPackageName())).performClick());
+            assertNotNull("Tapping the thumbnail opens the saved photo.", opened.get());
+            assertEquals(uri, opened.get().getData());
+            assertEquals("image/jpeg", opened.get().getType());
+            assertTrue((opened.get().getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION) != 0);
+        } finally {
+            instrumentation.removeMonitor(monitor);
         }
     }
 
     private static void rotateAndAwait(ActivityScenario<MainActivity> scenario,
-            int requestedOrientation, int expectedOrientation) {
-        scenario.onActivity(activity -> activity.setRequestedOrientation(requestedOrientation));
+            int rotation, int expectedOrientation) {
+        assertTrue(InstrumentationRegistry.getInstrumentation().getUiAutomation().setRotation(rotation));
         long deadline = SystemClock.elapsedRealtime() + 15_000;
         AtomicBoolean rotated = new AtomicBoolean();
         do {
@@ -262,7 +329,8 @@ public class CameraPreviewTest {
             preview.getLocationOnScreen(location);
             center[0] = location[0] + preview.getWidth() / 2f;
             center[1] = location[1] + preview.getHeight() / 2f;
-            center[2] = Math.min(preview.getWidth(), preview.getHeight()) * 0.12f;
+            // The fingers spread horizontally, even when a short landscape preview is used.
+            center[2] = preview.getWidth() * 0.22f;
         });
         long start = SystemClock.uptimeMillis();
         MotionEvent.PointerProperties[] properties = new MotionEvent.PointerProperties[2];
@@ -308,7 +376,12 @@ public class CameraPreviewTest {
     private static Uri capturePhoto(Context context, ActivityScenario<MainActivity> scenario,
             boolean doubleTap) throws Exception {
         Set<Uri> photosBeforeCapture = queryPhotoUris(context);
+        AtomicReference<Drawable> previousThumbnail = new AtomicReference<>();
         scenario.onActivity(activity -> {
+            ImageButton recent = activity.findViewById(activity.getResources().getIdentifier(
+                    "recent_photo", "id", activity.getPackageName()));
+            assertNotNull(recent);
+            previousThumbnail.set(recent.getDrawable());
             ImageButton shutter = activity.findViewById(R.id.shutter_button);
             assertNotNull("A shutter button must be available.", shutter);
             assertTrue(shutter.isShown());
@@ -319,7 +392,7 @@ public class CameraPreviewTest {
                 shutter.performClick();
             }
         });
-        awaitPhotoSaved(scenario);
+        awaitPhotoSaved(scenario, previousThumbnail.get());
         awaitStreaming(scenario);
 
         Set<Uri> newPhotos = queryPhotoUris(context);
@@ -378,7 +451,7 @@ public class CameraPreviewTest {
         fail("Preview and shutter did not become ready within 15 seconds after resuming.");
     }
 
-    private static void awaitPhotoSaved(ActivityScenario<MainActivity> scenario) {
+    private static void awaitPhotoSaved(ActivityScenario<MainActivity> scenario, Drawable previous) {
         long deadline = SystemClock.elapsedRealtime() + 15_000;
         AtomicBoolean saved = new AtomicBoolean();
         AtomicReference<String> lastStatus = new AtomicReference<>();
@@ -389,9 +462,16 @@ public class CameraPreviewTest {
                 assertNotNull(status);
                 assertNotNull(shutter);
                 lastStatus.set(status.getText().toString());
-                saved.set(status.isShown()
-                        && activity.getString(R.string.photo_saved).contentEquals(status.getText())
-                        && shutter.isEnabled());
+                ImageButton recent = activity.findViewById(activity.getResources().getIdentifier(
+                        "recent_photo", "id", activity.getPackageName()));
+                saved.set(shutter.isEnabled() && recent != null && recent.isEnabled()
+                        && recent.getDrawable() instanceof BitmapDrawable
+                        && recent.getDrawable() != previous
+                        && activity.findViewById(activity.getResources().getIdentifier(
+                                "capture_flash", "id", activity.getPackageName())).getVisibility() == View.GONE);
+                if (saved.get()) {
+                    assertFalse("Successful capture uses visual feedback, not a text banner.", status.isShown());
+                }
             });
             if (saved.get()) {
                 return;
@@ -471,6 +551,10 @@ public class CameraPreviewTest {
     }
 
     private static void saveScreenshot(Context context) throws Exception {
+        saveScreenshot(context, "camera-preview.png");
+    }
+
+    private static void saveScreenshot(Context context, String filename) throws Exception {
         Bitmap screenshot = InstrumentationRegistry.getInstrumentation()
                 .getUiAutomation().takeScreenshot();
         assertNotNull("The device must allow a screenshot of the camera preview.", screenshot);
@@ -478,7 +562,7 @@ public class CameraPreviewTest {
             File directory = context.getExternalFilesDir("test-artifacts");
             assertNotNull("External test-artifact storage must be available.", directory);
             try (FileOutputStream output = new FileOutputStream(
-                    new File(directory, "camera-preview.png"))) {
+                    new File(directory, filename))) {
                 assertTrue("Save the preview screenshot as a PNG.",
                         screenshot.compress(Bitmap.CompressFormat.PNG, 100, output));
             }

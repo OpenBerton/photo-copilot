@@ -38,6 +38,7 @@ public final class CameraSession {
     }
 
     public interface PhotoCallback {
+        void onCaptureStarted();
         void onSaved(Uri uri);
         void onError();
     }
@@ -298,6 +299,12 @@ public final class CameraSession {
                     try {
                         capture.takePicture(new ImageCapture.OutputFileOptions.Builder(photo.stream)
                                 .build(), main, new ImageCapture.OnImageSavedCallback() {
+                                    @Override
+                                    public void onCaptureStarted() {
+                                        if (owner.getLifecycle().getCurrentState() == Lifecycle.State.RESUMED
+                                                && request == generation) callback.onCaptureStarted();
+                                    }
+
                                     @Override
                                     public void onImageSaved(ImageCapture.OutputFileResults result) {
                                         finishPhoto(photo, true, callback);
