@@ -65,7 +65,9 @@ public final class ZoomRuler extends SeekBar {
         super.setOnSeekBarChangeListener(listener == null ? null : new OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
-                listener.onProgressChanged(bar, progress, fromUser || touchUpdate);
+                boolean userChange = fromUser || touchUpdate;
+                touchUpdate = false;
+                listener.onProgressChanged(bar, progress, userChange);
             }
             @Override public void onStartTrackingTouch(SeekBar bar) { listener.onStartTrackingTouch(bar); }
             @Override public void onStopTrackingTouch(SeekBar bar) { listener.onStopTrackingTouch(bar); }
@@ -102,6 +104,15 @@ public final class ZoomRuler extends SeekBar {
             float clamped = Math.max(minimum, Math.min(maximum, ratio));
             setProgress((int) Math.round(1000 * Math.log(clamped / minimum)
                     / Math.log(maximum / minimum)));
+        }
+    }
+
+    public void setZoomRatioFromUser(float ratio) {
+        touchUpdate = true;
+        try {
+            showZoomRatio(ratio);
+        } finally {
+            touchUpdate = false;
         }
     }
 
@@ -150,12 +161,7 @@ public final class ZoomRuler extends SeekBar {
         dragLogRatio = Math.max(Math.log(minimum), Math.min(Math.log(maximum),
                 dragLogRatio - (x - lastX) * LOG_2 / (120 * density)));
         lastX = x;
-        touchUpdate = true;
-        try {
-            showZoomRatio((float) Math.exp(dragLogRatio));
-        } finally {
-            touchUpdate = false;
-        }
+        setZoomRatioFromUser((float) Math.exp(dragLogRatio));
     }
 
     private void endDrag() {

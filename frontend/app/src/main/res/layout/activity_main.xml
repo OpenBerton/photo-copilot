@@ -110,12 +110,21 @@
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:text="@string/zoom_default" android:textColor="@color/foreground"
             android:textAllCaps="false" android:contentDescription="@string/zoom_default" />
-        <com.yrf3.photocopilot.camera.ZoomRuler
-            android:id="@+id/zoom_slider"
+        <com.yrf3.photocopilot.camera.ZoomControl
+            android:id="@+id/zoom_control"
             android:layout_width="match_parent" android:layout_height="64dp"
             android:layout_marginStart="24dp" android:layout_marginEnd="24dp"
-            android:paddingStart="12dp" android:paddingEnd="12dp"
-            android:contentDescription="@string/zoom_adjust" />
+            android:contentDescription="@string/zoom_adjust">
+            <com.yrf3.photocopilot.camera.ZoomRuler
+                android:id="@+id/zoom_slider"
+                android:layout_width="match_parent" android:layout_height="match_parent"
+                android:visibility="invisible" android:contentDescription="@string/zoom_adjust" />
+            <LinearLayout
+                android:id="@+id/zoom_presets"
+                android:layout_width="wrap_content" android:layout_height="match_parent"
+                android:layout_gravity="center" android:gravity="center"
+                android:orientation="horizontal" android:layoutDirection="ltr" />
+        </com.yrf3.photocopilot.camera.ZoomControl>
         <FrameLayout android:layout_width="match_parent" android:layout_height="88dp" android:layoutDirection="ltr">
             <ImageButton
                 android:id="@+id/recent_photo"

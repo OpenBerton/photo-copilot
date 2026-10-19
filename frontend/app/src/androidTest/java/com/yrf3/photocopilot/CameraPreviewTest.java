@@ -151,7 +151,7 @@ public class CameraPreviewTest {
         }
     }
 
-    private static void verifyControls(ActivityScenario<MainActivity> scenario) {
+    private static void verifyControls(ActivityScenario<MainActivity> scenario) throws Exception {
         scenario.onActivity(activity -> {
             View button = activity.findViewById(R.id.grid_button);
             button.performClick();
@@ -210,15 +210,27 @@ public class CameraPreviewTest {
             awaitZoom(scenario, false);
             scenario.onActivity(activity -> activity.findViewById(R.id.zoom_button).performLongClick());
             awaitZoom(scenario, true);
-            scenario.onActivity(activity -> activity.findViewById(R.id.zoom_button).performClick());
+            scenario.onActivity(activity -> {
+                android.view.ViewGroup presets = activity.findViewById(R.id.zoom_presets);
+                for (int index = 0; index < presets.getChildCount(); index++) {
+                    Button button = (Button) presets.getChildAt(index);
+                    if ("2×".contentEquals(button.getText())) {
+                        assertTrue(button.isEnabled());
+                        button.performClick();
+                        return;
+                    }
+                }
+                activity.findViewById(R.id.zoom_button).performClick();
+            });
             awaitZoom(scenario, false);
             float requested = dragZoomRuler(scenario);
             awaitZoomRatio(scenario, requested);
         }
     }
 
-    private static float dragZoomRuler(ActivityScenario<MainActivity> scenario) {
+    private static float dragZoomRuler(ActivityScenario<MainActivity> scenario) throws Exception {
         float[] point = new float[4];
+        int[] previewSize = new int[2];
         scenario.onActivity(activity -> {
             View ruler = activity.findViewById(activity.getResources().getIdentifier(
                     "zoom_slider", "id", activity.getPackageName()));
@@ -230,6 +242,10 @@ public class CameraPreviewTest {
             point[1] = location[0] + ruler.getWidth() * 0.3f;
             point[2] = location[1] + ruler.getHeight() / 2f;
             point[3] = activity.getCameraSession().getZoomState().getZoomRatio();
+            View preview = activity.findViewById(R.id.preview_view);
+            previewSize[0] = preview.getWidth();
+            previewSize[1] = preview.getHeight();
+            assertEquals(View.INVISIBLE, ruler.getVisibility());
         });
         long start = SystemClock.uptimeMillis();
         for (int index = 0; index <= 8; index++) {
@@ -243,10 +259,27 @@ public class CameraPreviewTest {
                 event.recycle();
             }
             SystemClock.sleep(30);
+            if (index == 4) {
+                scenario.onActivity(activity -> {
+                    assertEquals(View.VISIBLE, activity.findViewById(R.id.zoom_slider).getVisibility());
+                    assertEquals(View.INVISIBLE, activity.findViewById(R.id.zoom_presets).getVisibility());
+                    View preview = activity.findViewById(R.id.preview_view);
+                    assertEquals(previewSize[0], preview.getWidth());
+                    assertEquals("Showing the ruler must not resize the preview.", previewSize[1], preview.getHeight());
+                    assertTrue(activity.findViewById(R.id.shutter_button).isShown());
+                    assertTrue(activity.findViewById(R.id.switch_camera).isShown());
+                });
+                saveScreenshot(InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                        "zoom-ruler-active.png");
+            }
         }
         AtomicReference<Float> requested = new AtomicReference<>();
-        scenario.onActivity(activity -> requested.set(((com.yrf3.photocopilot.camera.ZoomRuler)
-                activity.findViewById(R.id.zoom_slider)).getZoomRatio()));
+        scenario.onActivity(activity -> {
+            assertEquals(View.INVISIBLE, activity.findViewById(R.id.zoom_slider).getVisibility());
+            assertEquals(View.VISIBLE, activity.findViewById(R.id.zoom_presets).getVisibility());
+            requested.set(((com.yrf3.photocopilot.camera.ZoomRuler)
+                    activity.findViewById(R.id.zoom_slider)).getZoomRatio());
+        });
         assertTrue("Dragging the ruler left increases the requested zoom.", requested.get() > point[3] + 0.1f);
         return requested.get();
     }
@@ -561,6 +594,7 @@ public class CameraPreviewTest {
     }
 
     private static void saveScreenshot(Context context, String filename) throws Exception {
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
         Bitmap screenshot = InstrumentationRegistry.getInstrumentation()
                 .getUiAutomation().takeScreenshot();
         assertNotNull("The device must allow a screenshot of the camera preview.", screenshot);

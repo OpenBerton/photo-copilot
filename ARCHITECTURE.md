@@ -25,7 +25,7 @@ Android 使用 Java／XML。CLIP、餘弦相似度、ML Kit、FastAPI、MySQL、
 ## 程式放在哪裡
 
 Android 專案位於 `frontend/`，包含完整 Gradle wrapper 與設定。
-Java package 為 `com.yrf3.photocopilot`，目前包含 MainActivity，以及 camera 內的 CameraSession、PhotoStore、CompositionGrid、ZoomRuler 和 RecentPhoto；其下按需要加入：
+Java package 為 `com.yrf3.photocopilot`，目前包含 MainActivity，以及 camera 內的 CameraSession、PhotoStore、CompositionGrid、ZoomControl、ZoomRuler 和 RecentPhoto；其下按需要加入：
 
 | Package | 內容 |
 | --- | --- |
@@ -101,3 +101,4 @@ XML 沿用 Android `res/`；測試沿用 `src/test/` 和 `src/androidTest/`，�
 - CompositionGrid 沿用 FIT_CENTER 的預覽比例，以公開 ResolutionInfo 的 crop rect 及旋轉資料計算可見影像範圍，避免跨黑邊，也不使用實驗或受限制的座標轉換 API。控件及疊圖放在現有 camera 功能內，沒有新增根目錄或服務。
 - 2026-10-20：倍率與 ZoomRuler 放在預覽外、快門上方；直向控制區在底部，橫向在右側。RecentPhoto 只背景載入本 App 最近保存的照片 URI；沿用 SeekBar 控件和系統圖片檢視器。Android 8／9 縮圖使用 AndroidX ExifInterface 修正方向。純黑背景由主題、根畫面及控制區提供，配合系統 Insets 和 FIT_CENTER，與鏡頭解析度分離，不固定預覽像素大小。
 - ZoomRuler 保留 SeekBar 的鍵盤與無障礙操作，自訂直線刻度及相對拖動：中央指示固定，刻度按對數倍率移動，左右兩端以漸層淡出。同一倍增使用相同 dp 拖動距離，倍率由 CameraX 的實際範圍限制；程序同步畫面不產生新的使用者縮放請求。
+- ZoomControl 在同一個固定高度區域切換原生倍率按鈕和 ZoomRuler：輕觸按鈕選倍率，水平拖動超過系統手勢門檻才攔截，取消按鈕點按並把完整拖動交給刻度。放手、取消、停用或離開畫面均回到按鈕，不改變預覽大小；無障礙展開／收合仍可使用細調。

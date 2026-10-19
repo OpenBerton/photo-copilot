@@ -19,6 +19,7 @@ import android.widget.TextView;
 import android.widget.SeekBar;
 import android.widget.LinearLayout;
 import com.yrf3.photocopilot.camera.ZoomRuler;
+import com.yrf3.photocopilot.camera.ZoomControl;
 import com.yrf3.photocopilot.camera.RecentPhoto;
 
 import androidx.activity.ComponentActivity;
@@ -56,6 +57,7 @@ public class MainActivity extends ComponentActivity {
     private ImageButton gridButton;
     private Button zoomButton;
     private ZoomRuler zoomSlider;
+    private ZoomControl zoomControl;
     private RecentPhoto recentPhoto;
     private View captureFlash;
     private View saveProgress;
@@ -107,6 +109,7 @@ public class MainActivity extends ComponentActivity {
         gridButton = findViewById(R.id.grid_button);
         zoomButton = findViewById(R.id.zoom_button);
         zoomSlider = findViewById(R.id.zoom_slider);
+        zoomControl = findViewById(R.id.zoom_control);
         captureFlash = findViewById(R.id.capture_flash);
         saveProgress = findViewById(R.id.save_progress);
         recentPhoto = new RecentPhoto(this, findViewById(R.id.recent_photo),
@@ -251,7 +254,7 @@ public class MainActivity extends ComponentActivity {
         setControlEnabled(switchCamera, false);
         setControlEnabled(flash, false);
         setControlEnabled(zoomButton, false);
-        setControlEnabled(zoomSlider, false);
+        setControlEnabled(zoomControl, false);
         super.onPause();
     }
 
@@ -350,11 +353,11 @@ public class MainActivity extends ComponentActivity {
         ZoomState state = cameraSession.getZoomState();
         setControlEnabled(zoomButton, ready && state != null
                 && state.getMaxZoomRatio() - state.getMinZoomRatio() > 0.001f);
-        setControlEnabled(zoomSlider, zoomButton.isEnabled());
-        zoomSlider.setZoomRange(state == null ? 1f : state.getMinZoomRatio(),
+        setControlEnabled(zoomControl, zoomButton.isEnabled());
+        zoomControl.setZoomRange(state == null ? 1f : state.getMinZoomRatio(),
                 state == null ? 1f : state.getMaxZoomRatio());
         float ratio = state == null ? 1f : state.getZoomRatio();
-        if (!zoomSlider.isPressed()) zoomSlider.showZoomRatio(ratio);
+        zoomControl.showZoomRatio(ratio);
         zoomButton.setText(String.format(Locale.getDefault(),
                 Math.abs(ratio - Math.round(ratio)) < 0.05f ? "%.0f×" : "%.1f×", ratio));
         zoomButton.setContentDescription(getString(R.string.zoom_description, ratio));
