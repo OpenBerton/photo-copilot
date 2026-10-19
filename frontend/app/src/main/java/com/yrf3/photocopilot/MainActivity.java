@@ -21,6 +21,8 @@ import android.widget.LinearLayout;
 import com.yrf3.photocopilot.camera.ZoomRuler;
 import com.yrf3.photocopilot.camera.ZoomControl;
 import com.yrf3.photocopilot.camera.RecentPhoto;
+import com.yrf3.photocopilot.reference.DemoReferences;
+import com.yrf3.photocopilot.reference.ReferencePicker;
 
 import androidx.activity.ComponentActivity;
 import androidx.activity.result.ActivityResultLauncher;
@@ -59,6 +61,8 @@ public class MainActivity extends ComponentActivity {
     private ZoomRuler zoomSlider;
     private ZoomControl zoomControl;
     private RecentPhoto recentPhoto;
+    private ReferencePicker references;
+    private boolean reopenReferences;
     private View captureFlash;
     private View saveProgress;
     private CompositionGrid grid;
@@ -114,6 +118,9 @@ public class MainActivity extends ComponentActivity {
         saveProgress = findViewById(R.id.save_progress);
         recentPhoto = new RecentPhoto(this, findViewById(R.id.recent_photo),
                 () -> showPhotoStatus(R.string.photo_cannot_open, true));
+        references = new ReferencePicker(this, findViewById(R.id.reference_button), DemoReferences.load(this),
+                savedInstanceState == null ? null : savedInstanceState.getString("reference"));
+        reopenReferences = savedInstanceState != null && savedInstanceState.getBoolean("reference_open");
         zoomSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar slider, int progress, boolean fromUser) {
@@ -169,6 +176,10 @@ public class MainActivity extends ComponentActivity {
             if (event == Lifecycle.Event.ON_RESUME) {
                 updateShutter();
                 maybeCaptureAfterPermission();
+                if (reopenReferences) {
+                    reopenReferences = false;
+                    references.show();
+                }
             }
         });
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (view, windowInsets) -> {
@@ -374,6 +385,8 @@ public class MainActivity extends ComponentActivity {
 
     @Override
     protected void onSaveInstanceState(Bundle state) {
+        state.putString("reference", references.getSelectedId());
+        state.putBoolean("reference_open", references.isShowing());
         state.putBoolean("grid", gridVisible);
         state.putInt("lens", cameraSession.getLensFacing());
         state.putInt("flash", cameraSession.getFlashMode());
@@ -457,6 +470,7 @@ public class MainActivity extends ComponentActivity {
         photoStatus.removeCallbacks(hidePhotoStatus);
         captureFlash.animate().cancel();
         recentPhoto.close();
+        references.close();
         if (cameraSession != null) {
             cameraSession.stop();
         }

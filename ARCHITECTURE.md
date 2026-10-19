@@ -3,7 +3,7 @@
 ## 原則與現況
 
 依據 2026-09-11 FYP proposal 的功能需求，採用單一 repository，按功能分組。
-目前已建立 frontend Android 專案與 camera 預覽功能；其餘 package 及介面在實作相關功能時才建立。
+目前已建立 frontend Android 專案、camera 功能及 reference 示範選擇流程；其餘 package 及介面在實作相關功能時才建立。
 沒有程式就不建立空資料夾；不預建 backend、models、utils、services 或多個 Gradle module。
 
 Android 使用 Java／XML。CLIP、餘弦相似度、ML Kit、FastAPI、MySQL、Qwen／vLLM 保留為 proposal 的候選方案，並非已決定的依賴。
@@ -25,7 +25,7 @@ Android 使用 Java／XML。CLIP、餘弦相似度、ML Kit、FastAPI、MySQL、
 ## 程式放在哪裡
 
 Android 專案位於 `frontend/`，包含完整 Gradle wrapper 與設定。
-Java package 為 `com.yrf3.photocopilot`，目前包含 MainActivity，以及 camera 內的 CameraSession、PhotoStore、CompositionGrid、ZoomControl、ZoomRuler 和 RecentPhoto；其下按需要加入：
+Java package 為 `com.yrf3.photocopilot`，目前包含 MainActivity，以及 camera 內的 CameraSession、PhotoStore、CompositionGrid、ZoomControl、ZoomRuler 和 RecentPhoto，reference 內的 ReferencePhoto、DemoReferences 和 ReferencePicker；其下按需要加入：
 
 | Package | 內容 |
 | --- | --- |
@@ -82,7 +82,7 @@ XML 沿用 Android `res/`；測試沿用 `src/test/` 和 `src/androidTest/`，�
 1. **架構基線（已完成）**：README、架構文件及 Git 忽略設定；清楚區分已決定與待研究項目。
 2. **Android 起始專案（已完成）**：在 frontend 建立 Java／XML 專案，提交 wrapper；組員可以編譯並啟動空白畫面。
 3. **基本相機（進行中）**：已加入權限、即時預覽、拍攝及相簿保存；已加入鏡頭切換、縮放、閃光燈及九宮格；持續補真機驗證。
-4. **假資料推薦流程**：場景操作、參考列表、選擇與可選疊圖；標示示範資料，測試空結果、錯誤及過期回應。
+4. **假資料推薦流程（進行中）**：已加入本機示範照片列表、選擇、換圖及取消，涵蓋空資料及圖片載入錯誤；場景操作、疊圖及非同步推薦／過期回應待實作。
 5. **算法實驗與接入**：比較準確度、延遲、記憶體、網絡依賴與成本；記錄證據後決定執行位置，替換假資料而不重寫畫面流程。
 6. **拍攝建議與評估**：逐一加入構圖及參數建議，驗證裝置支援和提示效用，再進行整合及用戶評估。
 
@@ -102,3 +102,42 @@ XML 沿用 Android `res/`；測試沿用 `src/test/` 和 `src/androidTest/`，�
 - 2026-10-20：倍率與 ZoomRuler 放在預覽外、快門上方；直向控制區在底部，橫向在右側。RecentPhoto 只背景載入本 App 最近保存的照片 URI；沿用 SeekBar 控件和系統圖片檢視器。Android 8／9 縮圖使用 AndroidX ExifInterface 修正方向。純黑背景由主題、根畫面及控制區提供，配合系統 Insets 和 FIT_CENTER，與鏡頭解析度分離，不固定預覽像素大小。
 - ZoomRuler 保留 SeekBar 的鍵盤與無障礙操作，自訂直線刻度及相對拖動：中央指示固定，刻度按對數倍率移動，左右兩端以漸層淡出。同一倍增使用相同 dp 拖動距離，倍率由 CameraX 的實際範圍限制；程序同步畫面不產生新的使用者縮放請求。
 - ZoomControl 在同一個固定高度區域切換原生倍率按鈕和 ZoomRuler：輕觸按鈕選倍率，水平拖動超過系統手勢門檻才攔截，取消按鈕點按並把完整拖動交給刻度。放手、取消、停用或離開畫面均回到按鈕，不改變預覽大小；無障礙展開／收合仍可使用細調。
+- 2026-10-20：ReferencePhoto 僅提供穩定 ID、本機圖片 URI 及無障礙描述；DemoReferences 集中提供四張示範素材。ReferencePicker 使用原生底部 Dialog、水平縮圖列表及選取／清除操作，不引入 UI 框架或額外模組。日後推薦功能提供同類資料即可接入，尚未建立沒有用途的推薦 interface。
+- 縮圖以單一背景執行緒按最大邊 512px 取樣解碼，畫面僅保留小圖；關閉 Activity 後忽略未完成回呼。Bundle 保存選擇 ID 與面板開啟狀態，不保存 Bitmap。重新開啟捲到已選照片；未知 ID 或圖片失效會清除該選擇，失敗卡片停用，重新開啟可重試。這版沒有場景分析、排序、輪廓或構圖建議。
+
+## 示範圖片來源
+
+2026-10-20，使用內建 `image_gen` 工具的 generate 模式，一張素材一次呼叫，未使用 CLI／API fallback；`transparent_background=false`，沒有輸入參考圖片。生成結果以原始 PNG 複製到專案，未再裁切、縮放或改圖。這些素材僅供介面流程示範，不作為真實攝影評估資料或已實作的推薦結果。
+
+| 選擇 ID | 素材 | 專案路徑 |
+| --- | --- | --- |
+| `waterfront` | 海邊人像 | [reference_waterfront.png](frontend/app/src/main/res/drawable-nodpi/reference_waterfront.png) |
+| `street` | 街道人像 | [reference_street.png](frontend/app/src/main/res/drawable-nodpi/reference_street.png) |
+| `coast` | 海岸風景 | [reference_coast.png](frontend/app/src/main/res/drawable-nodpi/reference_coast.png) |
+| `mountains` | 山景 | [reference_mountains.png](frontend/app/src/main/res/drawable-nodpi/reference_mountains.png) |
+
+以下為各次生成使用的完整最終提示詞。
+
+### reference_waterfront.png
+
+```text
+Use case: photorealistic-natural. Asset type: one demo reference photo for an Android travel photography app. Create a single natural editorial travel photograph, vertical 3:4 composition: an adult woman in simple unbranded casual clothing standing on a quiet waterfront promenade at golden hour. Full body visible with natural hands and feet, subject on the left third, harbour water and distant generic skyline on the right, natural relaxed pose and believable skin texture. This should demonstrate balanced travel portrait composition. No text, logo, watermark, border, collage, app UI, or resemblance to a known person.
+```
+
+### reference_street.png
+
+```text
+Use case: photorealistic-natural. Asset type: one demo reference photo for an Android travel photography app. Create a single natural editorial travel photograph, vertical 3:4 composition: an adult man in simple unbranded casual travel clothing walking on a clean city pedestrian street. Full body visible, subject on the right third, subtle leading lines from paving and simple buildings, soft overcast daylight, candid relaxed pose, believable anatomy and skin texture. Generic fictional setting without legible signs. No text, logo, watermark, border, collage, app UI, or resemblance to a known person.
+```
+
+### reference_coast.png
+
+```text
+Use case: photorealistic-natural. Asset type: one demo scenery reference photo for an Android travel photography app. Create one realistic natural travel photograph, vertical 3:4 composition, of a quiet coastal headland and blue sea in clear late afternoon light. Curved rocky shoreline leads the eye from lower left towards a distant headland, horizon near the upper third, textured natural foreground and airy sky. Aesthetic but believable everyday travel photography. No people, text, logos, watermarks, borders, collage, or app UI.
+```
+
+### reference_mountains.png
+
+```text
+Use case: photorealistic-natural. Asset type: one demo scenery reference photo for an Android travel photography app. Create one realistic natural travel photograph, vertical 3:4 composition, of green mountain ridges in soft morning light. A narrow winding hiking path creates a clear leading line through the foreground, layered distant peaks and a pale sky near the upper third, realistic foliage and atmospheric depth. Aesthetic but believable travel photography. No people, buildings, text, logos, watermarks, borders, collage, or app UI.
+```

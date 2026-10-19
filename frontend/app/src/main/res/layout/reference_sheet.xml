@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/reference_sheet"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:background="@color/background"
+    android:paddingBottom="16dp" android:importantForAccessibility="yes">
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+        android:background="#303030" android:importantForAccessibility="no" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp"
+        android:paddingStart="16dp" android:paddingEnd="8dp" android:gravity="center_vertical">
+        <TextView android:id="@+id/reference_demo"
+            android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:text="@string/reference_demo" android:textColor="@color/foreground"
+            android:textSize="14sp" android:maxLines="1" android:ellipsize="end" />
+        <Button android:id="@+id/clear_reference"
+            android:layout_width="wrap_content" android:layout_height="48dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:text="@string/reference_clear" android:textColor="@color/foreground"
+            android:textAllCaps="false" android:textSize="13sp" />
+        <ImageButton android:id="@+id/close_references"
+            android:layout_width="48dp" android:layout_height="48dp" android:padding="12dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_close" android:contentDescription="@string/reference_close" />
+    </LinearLayout>
+    <HorizontalScrollView android:id="@+id/reference_gallery"
+        android:layout_width="match_parent" android:layout_height="164dp"
+        android:layout_marginTop="8dp" android:scrollbars="none" android:fillViewport="true">
+        <LinearLayout android:id="@+id/reference_photos"
+            android:layout_width="wrap_content" android:layout_height="match_parent"
+            android:paddingStart="16dp" android:paddingEnd="16dp"
+            android:orientation="horizontal" android:gravity="center" android:layoutDirection="ltr" />
+    </HorizontalScrollView>
+    <TextView android:id="@+id/reference_status"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:padding="16dp" android:textColor="@color/foreground" android:textSize="14sp"
+        android:accessibilityLiveRegion="polite" android:visibility="gone" />
+</LinearLayout>
