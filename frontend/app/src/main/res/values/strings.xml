@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name" translatable="false">Photo Copilot</string>
-    <string name="camera_permission_explanation">Allow camera access to see a live preview. Nothing is saved or uploaded.</string>
     <string name="camera_permission_settings">Camera access is off. Enable it in app settings to see a live preview.</string>
     <string name="enable_camera">Enable camera</string>
     <string name="open_settings">Open settings</string>
@@ -9,4 +8,10 @@
     <string name="camera_missing">No camera is available on this device.</string>
     <string name="camera_error">Camera unavailable. Check camera access and close other camera apps, then try again.</string>
     <string name="retry">Try again</string>
+    <string name="camera_permission_explanation">Allow camera access to preview and take photos. Photos stay on your device.</string>
+    <string name="take_photo">Take photo</string>
+    <string name="photo_saving">Saving…</string>
+    <string name="photo_saved">Photo saved to your gallery.</string>
+    <string name="photo_error">Could not save the photo. Check available storage and try again.</string>
+    <string name="photo_storage_permission">Allow storage access to save photos to your gallery.</string>
 </resources>

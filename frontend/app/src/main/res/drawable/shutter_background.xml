@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#409DE0C4">
+    <item>
+        <layer-list>
+            <item>
+                <shape android:shape="oval">
+                    <solid android:color="@android:color/transparent" />
+                    <stroke android:width="2dp" android:color="@color/foreground" />
+                </shape>
+            </item>
+            <item android:left="6dp" android:top="6dp"
+                android:right="6dp" android:bottom="6dp">
+                <shape android:shape="oval">
+                    <solid android:color="@color/foreground" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+    <item android:id="@android:id/mask">
+        <shape android:shape="oval">
+            <solid android:color="@android:color/white" />
+        </shape>
+    </item>
+</ripple>
