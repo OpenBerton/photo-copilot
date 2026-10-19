@@ -5,14 +5,6 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="16dp"
-        android:text="@string/app_name"
-        android:textColor="@color/foreground"
-        android:textSize="22sp" />
-
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -23,6 +15,20 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:importantForAccessibility="no" />
+
+        <TextView
+            android:id="@+id/photo_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|center_horizontal"
+            android:layout_margin="16dp"
+            android:accessibilityLiveRegion="polite"
+            android:background="#CC101820"
+            android:gravity="center"
+            android:padding="10dp"
+            android:textColor="@color/foreground"
+            android:textSize="14sp"
+            android:visibility="gone" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -52,31 +58,18 @@
                 android:text="@string/enable_camera" />
         </LinearLayout>
     </FrameLayout>
-    <LinearLayout
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:padding="12dp">
+        android:layout_height="112dp">
 
-        <TextView
-            android:id="@+id/photo_status"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:accessibilityLiveRegion="polite"
-            android:gravity="center"
-            android:text="@string/photo_hint"
-            android:textColor="@color/foreground"
-            android:textSize="14sp" />
-
-        <Button
+        <ImageButton
             android:id="@+id/shutter_button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:minWidth="96dp"
-            android:minHeight="56dp"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:layout_gravity="center"
+            android:background="@drawable/shutter_background"
+            android:contentDescription="@string/take_photo"
             android:enabled="false"
-            android:text="@string/take_photo" />
-    </LinearLayout>
+            android:padding="0dp" />
+    </FrameLayout>
 </LinearLayout>

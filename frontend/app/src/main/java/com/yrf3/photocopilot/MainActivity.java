@@ -9,6 +9,7 @@ import android.os.Build;
 import android.provider.Settings;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.TextView;
 
 import androidx.activity.ComponentActivity;
@@ -34,8 +35,9 @@ public class MainActivity extends ComponentActivity {
     private View previewView;
     private ActivityResultLauncher<String> permissionRequest;
     private ActivityResultLauncher<String> storageRequest;
-    private Button shutter;
+    private ImageButton shutter;
     private TextView photoStatus;
+    private final Runnable hidePhotoStatus = () -> photoStatus.setVisibility(View.GONE);
     private boolean captureInProgress;
     private boolean captureAfterPermission;
     private static final String STORAGE_REQUESTED = "storage_requested";
@@ -53,7 +55,7 @@ public class MainActivity extends ComponentActivity {
                         captureAfterPermission = true;
                         maybeCaptureAfterPermission();
                     } else {
-                        photoStatus.setText(R.string.photo_storage_permission);
+                        showPhotoStatus(R.string.photo_storage_permission, false);
                         updateShutter();
                     }
                 });
@@ -197,8 +199,18 @@ public class MainActivity extends ComponentActivity {
         if (shutter != null) {
             shutter.setEnabled(!captureInProgress && cameraSession != null
                     && cameraSession.isReadyToCapture());
-            shutter.setText(captureInProgress ? R.string.photo_saving
-                    : storageNeedsSettings() ? R.string.open_settings : R.string.take_photo);
+            shutter.setAlpha(shutter.isEnabled() ? 1f : 0.35f);
+            shutter.setContentDescription(getString(captureInProgress ? R.string.photo_saving
+                    : storageNeedsSettings() ? R.string.open_settings : R.string.take_photo));
+        }
+    }
+
+    private void showPhotoStatus(int message, boolean temporary) {
+        photoStatus.removeCallbacks(hidePhotoStatus);
+        photoStatus.setText(message);
+        photoStatus.setVisibility(View.VISIBLE);
+        if (temporary) {
+            photoStatus.postDelayed(hidePhotoStatus, 2500);
         }
     }
 
@@ -230,32 +242,33 @@ public class MainActivity extends ComponentActivity {
 
     private void capturePhoto() {
         captureInProgress = true;
-        photoStatus.setText(R.string.photo_saving);
+        showPhotoStatus(R.string.photo_saving, false);
         updateShutter();
         boolean started = cameraSession.takePhoto(new CameraSession.PhotoCallback() {
             @Override
             public void onSaved(Uri uri) {
                 captureInProgress = false;
-                photoStatus.setText(R.string.photo_saved);
+                showPhotoStatus(R.string.photo_saved, true);
                 updateShutter();
             }
 
             @Override
             public void onError() {
                 captureInProgress = false;
-                photoStatus.setText(R.string.photo_error);
+                showPhotoStatus(R.string.photo_error, false);
                 updateShutter();
             }
         });
         if (!started) {
             captureInProgress = false;
-            photoStatus.setText(R.string.photo_error);
+            showPhotoStatus(R.string.photo_error, false);
             updateShutter();
         }
     }
 
     @Override
     protected void onDestroy() {
+        photoStatus.removeCallbacks(hidePhotoStatus);
         if (cameraSession != null) {
             cameraSession.stop();
         }

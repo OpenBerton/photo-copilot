@@ -8,7 +8,6 @@
     <string name="camera_error">暫時無法使用相機。請檢查相機存取設定，並關閉其他使用相機的應用程式後再試。</string>
     <string name="retry">重試</string>
     <string name="camera_permission_explanation">允許使用相機，即可預覽和拍照。照片只會保存在你的裝置。</string>
-    <string name="photo_hint">照片會儲存到 Pictures/PhotoCopilot。</string>
     <string name="take_photo">拍照</string>
     <string name="photo_saving">儲存中…</string>
     <string name="photo_saved">照片已存入相簿。</string>

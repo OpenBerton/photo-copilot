@@ -21,6 +21,7 @@ import android.os.SystemClock;
 import android.provider.MediaStore;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.TextView;
 
 import androidx.camera.view.PreviewView;
@@ -110,7 +111,7 @@ public class CameraPreviewTest {
             boolean doubleTap) throws Exception {
         Set<Uri> photosBeforeCapture = queryPhotoUris(context);
         scenario.onActivity(activity -> {
-            Button shutter = activity.findViewById(R.id.shutter_button);
+            ImageButton shutter = activity.findViewById(R.id.shutter_button);
             assertNotNull("A shutter button must be available.", shutter);
             assertTrue(shutter.isShown());
             assertTrue("The camera must be ready before taking a photo.", shutter.isEnabled());
@@ -151,7 +152,7 @@ public class CameraPreviewTest {
         do {
             scenario.onActivity(activity -> {
                 PreviewView preview = activity.findViewById(R.id.preview_view);
-                Button shutter = activity.findViewById(R.id.shutter_button);
+                ImageButton shutter = activity.findViewById(R.id.shutter_button);
                 assertNotNull(preview);
                 assertNotNull(shutter);
                 ready.set(preview.getPreviewStreamState().getValue()
@@ -173,7 +174,7 @@ public class CameraPreviewTest {
         do {
             scenario.onActivity(activity -> {
                 TextView status = activity.findViewById(R.id.photo_status);
-                Button shutter = activity.findViewById(R.id.shutter_button);
+                ImageButton shutter = activity.findViewById(R.id.shutter_button);
                 assertNotNull(status);
                 assertNotNull(shutter);
                 lastStatus.set(status.getText().toString());
