@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name" translatable="false">Photo Copilot</string>
-    <string name="welcome_message">Your photography companion.\nCamera features are coming soon.</string>
+    <string name="camera_permission_explanation">Allow camera access to see a live preview. Nothing is saved or uploaded.</string>
+    <string name="camera_permission_settings">Camera access is off. Enable it in app settings to see a live preview.</string>
+    <string name="enable_camera">Enable camera</string>
+    <string name="open_settings">Open settings</string>
+    <string name="camera_starting">Starting camera…</string>
+    <string name="camera_missing">No camera is available on this device.</string>
+    <string name="camera_error">Camera unavailable. Check camera access and close other camera apps, then try again.</string>
+    <string name="retry">Try again</string>
 </resources>

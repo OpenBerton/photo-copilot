@@ -2,6 +2,5 @@
 <resources>
     <color name="background">#101820</color>
     <color name="foreground">#F5F7FA</color>
-    <color name="secondary">#B9C8D5</color>
     <color name="accent">#9DE0C4</color>
 </resources>
