@@ -99,4 +99,5 @@ XML 沿用 Android `res/`；測試沿用 `src/test/` 和 `src/androidTest/`，�
 
 - 2026-10-20：基本控制沿用 CameraSession，經 CameraX 能力查詢決定按鈕是否可用。縮放累積請求倍率並限制硬件範圍，忽略已過期操作回呼；相機重新開啟時重新套用倍率，切鏡時重設。閃光使用 ImageCapture flash mode，不開啟 torch。
 - CompositionGrid 沿用 FIT_CENTER 的預覽比例，以公開 ResolutionInfo 的 crop rect 及旋轉資料計算可見影像範圍，避免跨黑邊，也不使用實驗或受限制的座標轉換 API。控件及疊圖放在現有 camera 功能內，沒有新增根目錄或服務。
-- 2026-10-20：倍率與 ZoomRuler 放在預覽外、快門上方；直向控制區在底部，橫向在右側。RecentPhoto 只背景載入本 App 最近保存的照片 URI；沿用原生 SeekBar 操作和系統圖片檢視器。Android 8／9 縮圖使用 AndroidX ExifInterface 修正方向。純黑背景由主題、根畫面及控制區提供，配合系統 Insets 和 FIT_CENTER，與鏡頭解析度分離，不固定預覽像素大小。
+- 2026-10-20：倍率與 ZoomRuler 放在預覽外、快門上方；直向控制區在底部，橫向在右側。RecentPhoto 只背景載入本 App 最近保存的照片 URI；沿用 SeekBar 控件和系統圖片檢視器。Android 8／9 縮圖使用 AndroidX ExifInterface 修正方向。純黑背景由主題、根畫面及控制區提供，配合系統 Insets 和 FIT_CENTER，與鏡頭解析度分離，不固定預覽像素大小。
+- ZoomRuler 保留 SeekBar 的鍵盤與無障礙操作，自訂直線刻度及相對拖動：中央指示固定，刻度按對數倍率移動，左右兩端以漸層淡出。同一倍增使用相同 dp 拖動距離，倍率由 CameraX 的實際範圍限制；程序同步畫面不產生新的使用者縮放請求。

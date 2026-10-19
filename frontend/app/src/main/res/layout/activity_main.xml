@@ -112,12 +112,9 @@
             android:textAllCaps="false" android:contentDescription="@string/zoom_default" />
         <com.yrf3.photocopilot.camera.ZoomRuler
             android:id="@+id/zoom_slider"
-            android:layout_width="match_parent" android:layout_height="48dp"
+            android:layout_width="match_parent" android:layout_height="64dp"
             android:layout_marginStart="24dp" android:layout_marginEnd="24dp"
             android:paddingStart="12dp" android:paddingEnd="12dp"
-            android:thumb="@drawable/zoom_thumb"
-            android:progressTint="@color/foreground"
-            android:progressBackgroundTint="#505050"
             android:contentDescription="@string/zoom_adjust" />
         <FrameLayout android:layout_width="match_parent" android:layout_height="88dp" android:layoutDirection="ltr">
             <ImageButton

@@ -212,12 +212,12 @@ public class CameraPreviewTest {
             awaitZoom(scenario, true);
             scenario.onActivity(activity -> activity.findViewById(R.id.zoom_button).performClick());
             awaitZoom(scenario, false);
-            dragZoomRuler(scenario);
-            awaitZoom(scenario, false);
+            float requested = dragZoomRuler(scenario);
+            awaitZoomRatio(scenario, requested);
         }
     }
 
-    private static void dragZoomRuler(ActivityScenario<MainActivity> scenario) {
+    private static float dragZoomRuler(ActivityScenario<MainActivity> scenario) {
         float[] point = new float[4];
         scenario.onActivity(activity -> {
             View ruler = activity.findViewById(activity.getResources().getIdentifier(
@@ -226,9 +226,10 @@ public class CameraPreviewTest {
             assertTrue(ruler.isEnabled());
             int[] location = new int[2];
             ruler.getLocationOnScreen(location);
-            point[0] = location[0] + ruler.getWidth() * 0.2f;
-            point[1] = location[0] + ruler.getWidth() * 0.7f;
+            point[0] = location[0] + ruler.getWidth() * 0.7f;
+            point[1] = location[0] + ruler.getWidth() * 0.3f;
             point[2] = location[1] + ruler.getHeight() / 2f;
+            point[3] = activity.getCameraSession().getZoomState().getZoomRatio();
         });
         long start = SystemClock.uptimeMillis();
         for (int index = 0; index <= 8; index++) {
@@ -243,6 +244,11 @@ public class CameraPreviewTest {
             }
             SystemClock.sleep(30);
         }
+        AtomicReference<Float> requested = new AtomicReference<>();
+        scenario.onActivity(activity -> requested.set(((com.yrf3.photocopilot.camera.ZoomRuler)
+                activity.findViewById(R.id.zoom_slider)).getZoomRatio()));
+        assertTrue("Dragging the ruler left increases the requested zoom.", requested.get() > point[3] + 0.1f);
+        return requested.get();
     }
 
     private static void verifyRecentPhotoOpens(ActivityScenario<MainActivity> scenario, Uri uri) {
