@@ -21,6 +21,12 @@
         <Space android:layout_width="0dp" android:layout_height="1dp"
             android:layout_weight="1" />
         <ImageButton
+            android:id="@+id/reference_button"
+            android:layout_width="48dp" android:layout_height="48dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:padding="12dp" android:src="@drawable/ic_reference"
+            android:contentDescription="@string/reference_photos" />
+        <ImageButton
             android:id="@+id/grid_button"
             android:layout_width="48dp" android:layout_height="48dp"
             android:background="?android:attr/selectableItemBackgroundBorderless"

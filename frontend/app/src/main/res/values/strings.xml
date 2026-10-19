@@ -25,4 +25,15 @@
     <string name="recent_photo">View the last saved photo</string>
     <string name="zoom_adjust">Adjust zoom</string>
     <string name="photo_cannot_open">No photo viewer is available. The photo is saved in your gallery.</string>
+    <string name="reference_photos">Reference photos</string>
+    <string name="reference_demo">Demo photos</string>
+    <string name="reference_clear">Clear selection</string>
+    <string name="reference_close">Close reference photos</string>
+    <string name="reference_selected">Reference: %1$s</string>
+    <string name="reference_empty">No reference photos available.</string>
+    <string name="reference_load_error">Some photos could not be loaded.</string>
+    <string name="reference_waterfront">Waterfront portrait</string>
+    <string name="reference_street">Street portrait</string>
+    <string name="reference_coast">Coastal scenery</string>
+    <string name="reference_mountains">Mountain scenery</string>
 </resources>
