@@ -25,7 +25,7 @@ Android 使用 Java／XML。CLIP、餘弦相似度、ML Kit、FastAPI、MySQL、
 ## 程式放在哪裡
 
 Android 專案位於 `frontend/`，包含完整 Gradle wrapper 與設定。
-Java package 為 `com.yrf3.photocopilot`，目前包含 MainActivity，以及 camera 內的 CameraSession、PhotoStore、CompositionGrid、ZoomControl、ZoomRuler 和 RecentPhoto，reference 內的 ReferencePhoto、DemoReferences 和 ReferencePicker；其下按需要加入：
+Java package 為 `com.yrf3.photocopilot`，目前包含 MainActivity，以及 camera 內的 CameraSession、CameraLayout、PhotoStore、CompositionGrid、ZoomControl、ZoomRuler 和 RecentPhoto，reference 內的 ReferencePhoto、DemoReferences 和 ReferencePicker；其下按需要加入：
 
 | Package | 內容 |
 | --- | --- |
@@ -99,9 +99,11 @@ XML 沿用 Android `res/`；測試沿用 `src/test/` 和 `src/androidTest/`，�
 
 - 2026-10-20：基本控制沿用 CameraSession，經 CameraX 能力查詢決定按鈕是否可用。縮放累積請求倍率並限制硬件範圍，忽略已過期操作回呼；相機重新開啟時重新套用倍率，切鏡時重設。閃光使用 ImageCapture flash mode，不開啟 torch。
 - CompositionGrid 沿用 FIT_CENTER 的預覽比例，以公開 ResolutionInfo 的 crop rect 及旋轉資料計算可見影像範圍，避免跨黑邊，也不使用實驗或受限制的座標轉換 API。控件及疊圖放在現有 camera 功能內，沒有新增根目錄或服務。
-- 2026-10-20：倍率與 ZoomRuler 放在預覽外、快門上方；直向控制區在底部，橫向在右側。RecentPhoto 只背景載入本 App 最近保存的照片 URI；沿用 SeekBar 控件和系統圖片檢視器。Android 8／9 縮圖使用 AndroidX ExifInterface 修正方向。純黑背景由主題、根畫面及控制區提供，配合系統 Insets 和 FIT_CENTER，與鏡頭解析度分離，不固定預覽像素大小。
+- 2026-10-20：倍率與 ZoomRuler 放在預覽外、快門上方。相機控制由原先橫直向分別排列，改為以裝置本身為基準固定位置，只旋轉圖示、文字及縮圖。RecentPhoto 只背景載入本 App 最近保存的照片 URI；沿用 SeekBar 控件和系統圖片檢視器。Android 8／9 縮圖使用 AndroidX ExifInterface 修正方向。純黑背景由主題、根畫面及控制區提供，配合系統 Insets 和 FIT_CENTER，與鏡頭解析度分離，不固定預覽像素大小。
 - ZoomRuler 保留 SeekBar 的鍵盤與無障礙操作，自訂直線刻度及相對拖動：中央指示固定，刻度按對數倍率移動，左右兩端以漸層淡出。同一倍增使用相同 dp 拖動距離，倍率由 CameraX 的實際範圍限制；程序同步畫面不產生新的使用者縮放請求。
 - ZoomControl 在同一個固定高度區域切換原生倍率按鈕和 ZoomRuler：輕觸按鈕選倍率，水平拖動超過系統手勢門檻才攔截，取消按鈕點按並把完整拖動交給刻度。放手、取消、停用或離開畫面均回到按鈕，不改變預覽大小；無障礙展開／收合仍可使用細調。
+- CameraLayout 在目前視窗及安全 Insets 內，將同一套控制項按顯示旋轉角度對齊裝置原本座標；原生 View 轉換也用於觸控及無障礙邊界。預覽內容使用獨立 FrameLayout 反向補償，讓 PreviewView、提示與九宮格保持螢幕方向，仍由 CameraX 處理感光元件方向與 FIT_CENTER；不直接旋轉或重採樣相機像素。ZoomControl 逐個旋轉按鈕文字，ZoomRuler 只旋轉刻度標籤，刻度及拖動區維持原本位置。顯示監聽器隨 View 附加／移除註冊，不依賴鎖定螢幕方向。
+- CameraSession 在啟動／停止期間註冊／移除顯示監聽器，使用 [Preview.setTargetRotation](https://developer.android.com/reference/androidx/camera/core/Preview#setTargetRotation(int)) 同步明確設定的預覽方向，涵蓋不會重建 Activity 的 180° 旋轉；拍攝仍在快門時讀取目前顯示方向。這符合目前 COMPATIBLE PreviewView 的明確 target 行為。沒有以鎖定直向取代適配，因為 [Android 17 大螢幕方向限制](https://developer.android.com/about/versions/17/changes/ff-restrictions-ignored)對 target 37 不提供這類保證。
 - 2026-10-20：ReferencePhoto 僅提供穩定 ID、本機圖片 URI 及無障礙描述；DemoReferences 集中提供四張示範素材。ReferencePicker 使用原生底部 Dialog、水平縮圖列表及選取／清除操作，不引入 UI 框架或額外模組。日後推薦功能提供同類資料即可接入，尚未建立沒有用途的推薦 interface。
 - 縮圖以單一背景執行緒按最大邊 512px 取樣解碼，畫面僅保留小圖；關閉 Activity 後忽略未完成回呼。Bundle 保存選擇 ID 與面板開啟狀態，不保存 Bitmap。重新開啟捲到已選照片；未知 ID 或圖片失效會清除該選擇，失敗卡片停用，重新開啟可重試。這版沒有場景分析、排序、輪廓或構圖建議。
 

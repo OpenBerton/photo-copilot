@@ -30,6 +30,7 @@ public final class ZoomControl extends FrameLayout {
     private float maximum = Float.NaN;
     private MotionEvent down;
     private boolean dragging;
+    private float contentRotation;
 
     public ZoomControl(Context context, AttributeSet attributes) {
         super(context, attributes);
@@ -68,9 +69,18 @@ public final class ZoomControl extends FrameLayout {
         }
     }
 
+    public void setContentRotation(float degrees) {
+        contentRotation = degrees;
+        for (int index = 0; index < presets.getChildCount(); index++) {
+            presets.getChildAt(index).setRotation(degrees);
+        }
+        ruler.setContentRotation(degrees);
+    }
+
     private void addPreset(float ratio) {
         if (ratio < minimum || ratio > maximum) return;
         Button button = new Button(getContext());
+        button.setRotation(contentRotation);
         button.setText(String.format(Locale.getDefault(),
                 Math.abs(ratio - Math.round(ratio)) < 0.05f ? "%.0f×" : "%.1f×", ratio));
         button.setTextSize(13);

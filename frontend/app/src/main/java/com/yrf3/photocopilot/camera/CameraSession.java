@@ -1,6 +1,9 @@
 package com.yrf3.photocopilot.camera;
 
 import android.content.Context;
+import android.hardware.display.DisplayManager;
+import android.os.Handler;
+import android.os.Looper;
 import android.net.Uri;
 import android.util.Log;
 
@@ -49,6 +52,14 @@ public final class CameraSession {
     private final Listener listener;
     private final Executor main;
     private final PhotoStore photos;
+    private final DisplayManager displays;
+    private final DisplayManager.DisplayListener displayChanges = new DisplayManager.DisplayListener() {
+        @Override public void onDisplayAdded(int id) { }
+        @Override public void onDisplayRemoved(int id) { }
+        @Override public void onDisplayChanged(int id) {
+            if (view.getDisplay() != null && view.getDisplay().getDisplayId() == id) syncPreviewRotation();
+        }
+    };
     private ProcessCameraProvider provider;
     private Preview preview;
     private ImageCapture imageCapture;
@@ -73,6 +84,7 @@ public final class CameraSession {
         this.listener = listener;
         main = ContextCompat.getMainExecutor(this.context);
         photos = new PhotoStore(this.context);
+        displays = this.context.getSystemService(DisplayManager.class);
         view.setScaleType(PreviewView.ScaleType.FIT_CENTER);
         view.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE);
         view.getPreviewStreamState().observe(owner, state -> {
@@ -90,6 +102,7 @@ public final class CameraSession {
             return;
         }
         starting = true;
+        displays.registerDisplayListener(displayChanges, new Handler(Looper.getMainLooper()));
         cameraError = false;
         int request = ++generation;
         listener.onLoading();
@@ -210,6 +223,16 @@ public final class CameraSession {
         float width = info.getCropRect().width();
         float height = info.getCropRect().height();
         return info.getRotationDegrees() % 180 == 0 ? width / height : height / width;
+    }
+
+    private void syncPreviewRotation() {
+        if (preview != null && view.getDisplay() != null
+                && preview.getTargetRotation() != view.getDisplay().getRotation()) {
+            // A 180-degree display change need not recreate the Activity. COMPATIBLE
+            // PreviewView uses our explicit target, so keep it in sync without rebinding.
+            preview.setTargetRotation(view.getDisplay().getRotation());
+            listener.onControlsChanged();
+        }
     }
 
     public boolean switchCamera() {
@@ -366,6 +389,7 @@ public final class CameraSession {
     }
 
     public void stop() {
+        displays.unregisterDisplayListener(displayChanges);
         generation++;
         starting = false;
         cameraOpen = false;

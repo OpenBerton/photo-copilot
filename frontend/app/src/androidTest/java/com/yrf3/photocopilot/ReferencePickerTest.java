@@ -128,6 +128,7 @@ public class ReferencePickerTest {
             saveScreenshot("reference-picker-landscape.png");
             assertTrue(device.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK));
             awaitSelection(scenario, label(R.string.reference_mountains));
+            saveScreenshot("reference-return-landscape.png");
         }
     }
 

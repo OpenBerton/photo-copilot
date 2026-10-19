@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.yrf3.photocopilot.camera.CameraLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:background="@color/background">
-
+    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
+        android:orientation="vertical" android:layoutDirection="ltr">
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="48dp"
@@ -43,6 +43,11 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
+
+        <!-- This inner frame counter-rotates preview, grid and messages together. -->
+        <FrameLayout android:id="@+id/camera_preview_content"
+            android:layout_width="match_parent" android:layout_height="match_parent"
+            android:layout_gravity="center">
 
         <androidx.camera.view.PreviewView
             android:id="@+id/preview_view"
@@ -103,6 +108,7 @@
                 android:minHeight="48dp"
                 android:text="@string/enable_camera" />
         </LinearLayout>
+        </FrameLayout>
     </FrameLayout>
     <LinearLayout
         android:id="@+id/camera_controls"
@@ -110,7 +116,7 @@
         android:orientation="vertical" android:background="@color/background">
         <Button
             android:id="@+id/zoom_button"
-            android:layout_width="64dp" android:layout_height="48dp"
+            android:layout_width="48dp" android:layout_height="48dp"
             android:layout_gravity="center_horizontal"
             android:minHeight="0dp" android:padding="0dp"
             android:background="?android:attr/selectableItemBackgroundBorderless"
@@ -164,4 +170,5 @@
         </FrameLayout>
     </LinearLayout>
     </LinearLayout>
-</LinearLayout>
+    </LinearLayout>
+</com.yrf3.photocopilot.camera.CameraLayout>
