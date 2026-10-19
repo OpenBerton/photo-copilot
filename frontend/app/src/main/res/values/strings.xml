@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">Photo Copilot</string>
+    <string name="welcome_message">Your photography companion.\nCamera features are coming soon.</string>
+</resources>
