@@ -41,6 +41,7 @@ import java.util.Locale;
 public class MainActivity extends ComponentActivity {
     private static final String PERMISSIONS = "camera_permissions";
     private static final String REQUESTED = "requested";
+    private static final String CAMERA_PERMISSION_PENDING = "camera_permission_pending";
 
     private CameraSession cameraSession;
     private TextView status;
@@ -48,6 +49,7 @@ public class MainActivity extends ComponentActivity {
     private View messagePanel;
     private View previewView;
     private ActivityResultLauncher<String> permissionRequest;
+    private boolean cameraPermissionPending;
     private ActivityResultLauncher<String> storageRequest;
     private ImageButton shutter;
     private TextView photoStatus;
@@ -72,8 +74,13 @@ public class MainActivity extends ComponentActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        cameraPermissionPending = savedInstanceState != null
+                && savedInstanceState.getBoolean(CAMERA_PERMISSION_PENDING);
         permissionRequest = registerForActivityResult(
-                new ActivityResultContracts.RequestPermission(), granted -> updateCamera());
+                new ActivityResultContracts.RequestPermission(), granted -> {
+                    cameraPermissionPending = false;
+                    updateCamera();
+                });
         storageRequest = registerForActivityResult(
                 new ActivityResultContracts.RequestPermission(), granted -> {
                     if (granted) {
@@ -231,9 +238,7 @@ public class MainActivity extends ComponentActivity {
                         Uri.parse("package:" + getPackageName()));
                 startActivity(intent);
             } else {
-                getSharedPreferences(PERMISSIONS, MODE_PRIVATE).edit()
-                        .putBoolean(REQUESTED, true).apply();
-                permissionRequest.launch(Manifest.permission.CAMERA);
+                requestCameraPermission();
             }
         });
     }
@@ -260,6 +265,7 @@ public class MainActivity extends ComponentActivity {
             return;
         }
         if (hasCameraPermission()) {
+            cameraPermissionPending = false;
             // One-time grants and Android auto-reset must allow a new request later.
             getSharedPreferences(PERMISSIONS, MODE_PRIVATE).edit()
                     .remove(REQUESTED).apply();
@@ -268,8 +274,22 @@ public class MainActivity extends ComponentActivity {
         } else {
             cameraSession.stop();
             previewView.setVisibility(View.INVISIBLE);
-            showPermissionState();
+            if (cameraPermissionPending) {
+                messagePanel.setVisibility(View.GONE);
+            } else if (!getSharedPreferences(PERMISSIONS, MODE_PRIVATE).getBoolean(REQUESTED, false)) {
+                requestCameraPermission();
+            } else {
+                showPermissionState();
+            }
         }
+    }
+
+    private void requestCameraPermission() {
+        if (cameraPermissionPending) return;
+        cameraPermissionPending = true;
+        messagePanel.setVisibility(View.GONE);
+        getSharedPreferences(PERMISSIONS, MODE_PRIVATE).edit().putBoolean(REQUESTED, true).apply();
+        permissionRequest.launch(Manifest.permission.CAMERA);
     }
 
     private boolean hasCameraPermission() {
@@ -371,6 +391,7 @@ public class MainActivity extends ComponentActivity {
 
     @Override
     protected void onSaveInstanceState(Bundle state) {
+        state.putBoolean(CAMERA_PERMISSION_PENDING, cameraPermissionPending);
         state.putString("reference", references.getSelectedId());
         state.putBoolean("reference_open", references.isShowing());
         state.putBoolean("grid", gridVisible);

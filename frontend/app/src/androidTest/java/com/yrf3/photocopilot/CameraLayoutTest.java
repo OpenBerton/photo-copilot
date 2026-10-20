@@ -18,6 +18,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import org.junit.Test;
+import org.junit.Before;
 import org.junit.runner.RunWith;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -25,6 +26,12 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @RunWith(AndroidJUnit4.class)
 public class CameraLayoutTest {
+    @Before
+    public void allowCameraForLayoutChecks() throws Exception {
+        CameraPreviewTest.grantPermission(InstrumentationRegistry.getInstrumentation()
+                .getTargetContext().getPackageName(), android.Manifest.permission.CAMERA);
+    }
+
     @Test
     public void buttonLocationsStayWithDeviceWhenRotated() {
         UiAutomation device = InstrumentationRegistry.getInstrumentation().getUiAutomation();

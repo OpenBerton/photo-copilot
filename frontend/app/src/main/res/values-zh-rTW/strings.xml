@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="camera_permission_settings">相機權限已關閉。請到應用程式設定開啟權限，即可查看即時預覽。</string>
+    <string name="camera_permission_settings">請在應用程式設定開啟鏡頭權限。</string>
     <string name="enable_camera">開啟相機</string>
     <string name="open_settings">前往設定</string>
     <string name="camera_starting">正在啟動相機…</string>
     <string name="camera_missing">這部裝置沒有可用的相機。</string>
     <string name="camera_error">暫時無法使用相機。請檢查相機存取設定，並關閉其他使用相機的應用程式後再試。</string>
     <string name="retry">重試</string>
-    <string name="camera_permission_explanation">允許使用相機，即可預覽和拍照。照片只會保存在你的裝置。</string>
+    <string name="camera_permission_explanation">需要鏡頭權限才能拍照。</string>
     <string name="take_photo">拍照</string>
     <string name="photo_saving">儲存中…</string>
     <string name="photo_error">未能儲存照片。請檢查可用儲存空間，然後重試。</string>

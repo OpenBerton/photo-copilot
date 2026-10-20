@@ -91,6 +91,8 @@ XML 沿用 Android `res/`；測試沿用 `src/test/` 和 `src/androidTest/`，�
 
 ## 已採用的技術決定
 
+- 2026-10-20：MainActivity 沿用 AndroidX RequestPermission，首次進入相機直接顯示 [Android 系統權限視窗](https://developer.android.com/training/permissions/requesting)，不增加自製授權對話框。Bundle 保存尚在等待權限結果的狀態，旋轉時不重複發出請求；曾詢問但拒絕的情況只提供短提示及手動重試，系統不再詢問時導向本 App 設定。成功授權後清除已詢問記錄，既有權限失效時可重新請求；每次返回仍檢查真實權限，不以記錄代替系統狀態。
+
 - 2026-10-19：預覽使用 CameraX 1.6.2 穩定版與 ProcessCameraProvider，選擇鏡頭後綁定 ComponentActivity 生命週期。MainActivity 管理權限／畫面，camera/CameraSession 管理預覽、拍攝與相機錯誤；沿用單一 app 模組。同一相機模組已接入 ImageCapture；ImageAnalysis 在實作場景功能時才加入。
 - 預覽使用 FIT_CENTER 保留比例，以及 COMPATIBLE 模式支援之後疊圖；較舊非同步啟動結果不覆蓋已停止或已銷毀的畫面。錯誤提示在真實 STREAMING 狀態才隱藏。
 

@@ -10,6 +10,8 @@ import android.Manifest;
 import android.app.Instrumentation;
 import android.app.Activity;
 import android.app.UiAutomation;
+import android.accessibilityservice.AccessibilityServiceInfo;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.content.Intent;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.BitmapDrawable;
@@ -59,7 +61,8 @@ import java.util.concurrent.atomic.AtomicReference;
 @RunWith(AndroidJUnit4.class)
 public class CameraPreviewTest {
     /**
-     * Run against a fresh install, or clear this app's data before starting instrumentation.
+     * Focused permission cases require a fresh install or cleared app data. Other UI tests
+     * grant CAMERA in their fixture; this test still exercises the complete camera workflow.
      * Permission revocation must happen outside the test: Android kills the target process when
      * revoking CAMERA, which would also stop the instrumentation runner.
      * Requires a device or emulator with a working camera. A screenshot is saved locally under
@@ -68,15 +71,16 @@ public class CameraPreviewTest {
     @Test
     public void permissionStatesSurviveActivityRecreation() throws Exception {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
-        assertEquals("Clear the app's data before this test so the initial permission is denied.",
-                PackageManager.PERMISSION_DENIED,
-                context.checkSelfPermission(Manifest.permission.CAMERA));
-
-        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
-            assertPermissionRequired(scenario);
-            scenario.recreate();
-            assertPermissionRequired(scenario);
+        boolean granted = context.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
+        if ("true".equals(InstrumentationRegistry.getArguments().getString("require_fresh_permission"))) {
+            assertFalse("Clear only this test app's data before the focused permission run.", granted);
         }
+        if (!granted) {
+            try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+                exerciseSystemPermission(context, scenario);
+            }
+        }
+        if ("true".equals(InstrumentationRegistry.getArguments().getString("permission_only"))) return;
 
         grantPermission(context.getPackageName(), Manifest.permission.CAMERA);
         assertEquals(PackageManager.PERMISSION_GRANTED,
@@ -165,6 +169,138 @@ public class CameraPreviewTest {
                 context.getContentResolver().delete(photo, null, null);
             }
         }
+    }
+
+    private static void exerciseSystemPermission(Context context, ActivityScenario<MainActivity> scenario) throws Exception {
+        UiAutomation automation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        AccessibilityServiceInfo info = automation.getServiceInfo();
+        int originalFlags = info.flags;
+        info.flags |= AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
+        automation.setServiceInfo(info);
+        try {
+            awaitPermissionButton("permission_allow_foreground_only_button", "permission_allow_button");
+            scenario.onActivity(activity -> {
+                assertFalse("The initial request has no custom explanation page.",
+                        activity.findViewById(R.id.camera_message_panel).isShown());
+                assertFalse(activity.findViewById(R.id.shutter_button).isEnabled());
+            });
+            saveScreenshot(context, "camera-system-permission.png");
+            String choice = InstrumentationRegistry.getArguments().getString("permission_case", "allow");
+            if (!"allow".equals(choice)) {
+                assertTrue(awaitPermissionButton("permission_deny_button")
+                        .performAction(AccessibilityNodeInfo.ACTION_CLICK));
+                awaitPermissionFallback(scenario, false);
+                scenario.recreate();
+                awaitPermissionFallback(scenario, false);
+                assertEquals("Reopening after denial does not automatically request again.",
+                        context.getPackageName(), automation.getRootInActiveWindow().getPackageName().toString());
+                scenario.onActivity(activity -> activity.findViewById(R.id.camera_action).performClick());
+                awaitPermissionButton("permission_allow_foreground_only_button", "permission_allow_button");
+                if ("blocked".equals(choice)) {
+                    assertTrue("This case uses Android 11+ repeated-denial behavior.", Build.VERSION.SDK_INT >= 30);
+                    assertTrue(awaitPermissionButton("permission_deny_and_dont_ask_again_button", "permission_deny_button")
+                            .performAction(AccessibilityNodeInfo.ACTION_CLICK));
+                    awaitPermissionFallback(scenario, true);
+                    saveScreenshot(context, "camera-permission-settings.png");
+                    scenario.recreate();
+                    awaitPermissionFallback(scenario, true);
+                    verifyCameraSettingsOpens(scenario, context.getPackageName());
+                    grantPermission(context.getPackageName(), Manifest.permission.CAMERA);
+                    scenario.moveToState(Lifecycle.State.CREATED);
+                    scenario.moveToState(Lifecycle.State.RESUMED);
+                    awaitStreaming(scenario);
+                    return;
+                }
+            } else {
+                // The system dialog pauses its caller, so rotate the real device instead
+                // of ActivityScenario.recreate(), which requires a resumed Activity.
+                rotatePermissionCaller(scenario, UiAutomation.ROTATION_FREEZE_90);
+                rotatePermissionCaller(scenario, UiAutomation.ROTATION_FREEZE_0);
+            }
+            assertTrue(awaitPermissionButton("permission_allow_foreground_only_button", "permission_allow_button")
+                    .performAction(AccessibilityNodeInfo.ACTION_CLICK));
+            awaitStreaming(scenario);
+            assertEquals(PackageManager.PERMISSION_GRANTED, context.checkSelfPermission(Manifest.permission.CAMERA));
+        } finally {
+            automation.setRotation(UiAutomation.ROTATION_UNFREEZE);
+            AccessibilityServiceInfo current = automation.getServiceInfo();
+            current.flags = originalFlags;
+            automation.setServiceInfo(current);
+        }
+    }
+
+    private static void rotatePermissionCaller(ActivityScenario<MainActivity> scenario, int rotation) {
+        assertTrue(InstrumentationRegistry.getInstrumentation().getUiAutomation().setRotation(rotation));
+        long deadline = SystemClock.elapsedRealtime() + 10_000;
+        AtomicBoolean ready = new AtomicBoolean();
+        do {
+            scenario.onActivity(activity -> ready.set(activity.findViewById(R.id.main)
+                    .getDisplay().getRotation() == rotation && activity.getResources().getConfiguration().orientation
+                    == (rotation == 0 ? Configuration.ORIENTATION_PORTRAIT : Configuration.ORIENTATION_LANDSCAPE)));
+            if (ready.get()) break;
+            SystemClock.sleep(50);
+        } while (SystemClock.elapsedRealtime() < deadline);
+        assertTrue("The caller rotated while permission is pending.", ready.get());
+        awaitPermissionButton("permission_allow_foreground_only_button", "permission_allow_button");
+        scenario.onActivity(activity -> assertFalse(activity.findViewById(R.id.camera_message_panel).isShown()));
+    }
+
+    private static void awaitPermissionFallback(ActivityScenario<MainActivity> scenario, boolean settings) {
+        long deadline = SystemClock.elapsedRealtime() + 5_000;
+        AtomicBoolean shown = new AtomicBoolean();
+        do {
+            scenario.onActivity(activity -> {
+                TextView status = activity.findViewById(R.id.camera_status);
+                Button action = activity.findViewById(R.id.camera_action);
+                shown.set(status.isShown() && action.isShown() && action.isEnabled()
+                        && activity.getString(settings ? R.string.open_settings : R.string.enable_camera)
+                        .contentEquals(action.getText()));
+                assertFalse(activity.findViewById(R.id.shutter_button).isEnabled());
+            });
+            if (shown.get()) return;
+            SystemClock.sleep(50);
+        } while (SystemClock.elapsedRealtime() < deadline);
+        fail("The denied-permission action was not shown; settings=" + settings);
+    }
+
+    private static void verifyCameraSettingsOpens(ActivityScenario<MainActivity> scenario, String packageName) {
+        AtomicReference<Intent> opened = new AtomicReference<>();
+        Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
+        Instrumentation.ActivityMonitor monitor = new Instrumentation.ActivityMonitor() {
+            @Override public Instrumentation.ActivityResult onStartActivity(Intent intent) {
+                if (android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS.equals(intent.getAction())) {
+                    opened.set(intent);
+                    return new Instrumentation.ActivityResult(Activity.RESULT_OK, null);
+                }
+                return null;
+            }
+        };
+        instrumentation.addMonitor(monitor);
+        try {
+            scenario.onActivity(activity -> activity.findViewById(R.id.camera_action).performClick());
+            assertNotNull("Permanent denial offers app settings.", opened.get());
+            assertEquals(Uri.parse("package:" + packageName), opened.get().getData());
+        } finally { instrumentation.removeMonitor(monitor); }
+    }
+
+    private static AccessibilityNodeInfo awaitPermissionButton(String... ids) {
+        UiAutomation automation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        long deadline = SystemClock.elapsedRealtime() + 5_000;
+        do {
+            AccessibilityNodeInfo root = automation.getRootInActiveWindow();
+            if (root != null) {
+                for (String owner : new String[] {"com.android.permissioncontroller",
+                        "com.google.android.permissioncontroller", "com.android.packageinstaller"}) {
+                    for (String id : ids) {
+                        for (AccessibilityNodeInfo node : root.findAccessibilityNodeInfosByViewId(owner + ":id/" + id)) {
+                            if (node.isVisibleToUser() && node.isEnabled()) return node;
+                        }
+                    }
+                }
+            }
+            SystemClock.sleep(50);
+        } while (SystemClock.elapsedRealtime() < deadline);
+        throw new AssertionError("The Android camera permission dialog did not appear.");
     }
 
     private static void verifyControls(ActivityScenario<MainActivity> scenario) throws Exception {
@@ -612,26 +748,6 @@ public class CameraPreviewTest {
         return photos;
     }
 
-    private static void assertPermissionRequired(ActivityScenario<MainActivity> scenario) {
-        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
-        assertEquals("Opening the app must not automatically show a permission dialog.",
-                Lifecycle.State.RESUMED, scenario.getState());
-        scenario.onActivity(activity -> {
-            TextView status = activity.findViewById(R.id.camera_status);
-            Button action = activity.findViewById(R.id.camera_action);
-            View preview = activity.findViewById(R.id.preview_view);
-            assertNotNull(status);
-            assertNotNull(action);
-            assertNotNull(preview);
-            assertTrue("Explain why camera access is needed.", status.isShown());
-            assertFalse(status.getText().toString().trim().isEmpty());
-            assertTrue("The user must be able to request camera access.", action.isShown());
-            assertTrue(action.isEnabled());
-            assertFalse(action.getText().toString().trim().isEmpty());
-            assertFalse("Keep the preview hidden until permission is granted.", preview.isShown());
-        });
-    }
-
     private static void assertPreviewVisible(ActivityScenario<MainActivity> scenario) {
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
         assertEquals(Lifecycle.State.RESUMED, scenario.getState());
@@ -689,7 +805,7 @@ public class CameraPreviewTest {
         }
     }
 
-    private static void grantPermission(String packageName, String permission) throws Exception {
+    static void grantPermission(String packageName, String permission) throws Exception {
         ParcelFileDescriptor descriptor = InstrumentationRegistry.getInstrumentation()
                 .getUiAutomation().executeShellCommand(
                         "pm grant " + packageName + " " + permission);

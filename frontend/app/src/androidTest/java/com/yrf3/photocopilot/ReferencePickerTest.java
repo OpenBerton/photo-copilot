@@ -40,7 +40,9 @@ public class ReferencePickerTest {
     private int originalFlags;
 
     @Before
-    public void enableViewIds() {
+    public void enableViewIds() throws Exception {
+        CameraPreviewTest.grantPermission(InstrumentationRegistry.getInstrumentation()
+                .getTargetContext().getPackageName(), android.Manifest.permission.CAMERA);
         device = InstrumentationRegistry.getInstrumentation().getUiAutomation();
         AccessibilityServiceInfo info = device.getServiceInfo();
         originalFlags = info.flags;
