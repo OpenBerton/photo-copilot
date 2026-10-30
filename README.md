@@ -40,7 +40,7 @@ uv run --project backend --locked --no-dev --python 3.13 python -m photocopilot.
 uv run --project backend --locked --no-dev --python 3.13 python -m photocopilot.run
 ```
 
-`--check` 會檢查隨附資料，並用真實模型進行推薦；成功後執行最後一行啟動 API，再開啟 <http://127.0.0.1:8000/docs> 上傳照片試用。`uv` 會準備 Python 3.13 與鎖定的依賴，無須 Docker 或手動啟用虛擬環境。模型使用隨附的固定版本，不需再次從 Hugging Face 下載。若同一模型在當前系統的前處理／套件簽章與隨附索引不同，啟動程式會先從這 200 張照片重建相容索引，首次啟動因此較久；仍會保留嚴格簽章與資料完整性檢查。這不表示已在上述所有系統實機驗證。
+`--check` 會檢查隨附資料，並用真實模型進行推薦；成功後執行最後一行啟動 API，再開啟 <http://127.0.0.1:8000/docs> 上傳照片試用。`uv` 會準備 Python 3.13 與鎖定的依賴，無須 Docker 或手動啟用虛擬環境。模型使用隨附的固定版本，不需再次從 Hugging Face 下載。若同一模型在當前系統的前處理／套件簽章與隨附索引不同，啟動程式會先從這 200 張照片重建相容索引，首次啟動因此較久；仍會保留嚴格簽章與資料完整性檢查。Windows x64 及 macOS 15.5 Apple Silicon 的 API 實測均已通過；測試環境與 Mac 下載限制見[實際驗證記錄](backend/README.md#團隊共用驗證)。
 
 已經 clone 的組員先切換到上述分支並更新，再執行 `git lfs pull` 和同一組啟動指令。請使用 Git clone；GitHub 的一般 ZIP 下載可能只包含模型的 LFS 指標，不能代替完整權重。Android App 仍須在 Android Studio 建置，且尚未連接這個 API。
 

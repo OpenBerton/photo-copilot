@@ -51,4 +51,4 @@ Python 3.13.5、NumPy 2.5.4，CPU 推論。舊版 qdrant-client 1.20.0 使用本
 - Qdrant 與其不再需要的相依套件已從 `pyproject.toml`、`uv.lock` 及本機正式環境移除。Ruff 程式與格式檢查通過。
 - 按使用者要求，完成驗收後刪除本次暫時測試及比較程式，沒有將測試檔加入專案。保留本報告及忽略於 Git 的 `.data/numpy-migration-results.json` 實測數據。
 
-模型、索引和原始照片屬本機資料，未提交 Git。Android 接入及實機畫面不在此次修改範圍。
+團隊共用版本已將固定模型權重透過 Git LFS 保存，並版本管理 200 張圖庫照片及目前索引。Android 接入及實機畫面不在此次修改範圍。

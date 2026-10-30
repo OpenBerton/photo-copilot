@@ -175,6 +175,27 @@ uv run --project backend --locked --group dev ruff format --check backend
 
 完成開發檢查後，可再執行 `uv sync --project backend --locked --no-dev` 還原成僅含執行依賴的環境。發佈前用 `/health`、`POST /recommend` 與回傳的圖片網址確認啟動、上傳及讀圖正常。
 
+### 團隊共用驗證
+
+2026-10-30–31，驗證程式版本 `77cfc1e`，固定模型、200 張照片及可攜索引已保存於 `feat/reference-recommendation`。GitHub 上的最終 Git tree 與本機分享版本完全相同。
+
+- **Windows x64**：在 [GitHub Actions](https://github.com/OpenBerton/photo-copilot/actions/runs/41056661958) 的 Windows Server 2025／Python 3.13.16 完成全新 checkout、Git LFS 模型下載、鎖定正式依賴安裝、`--check` 及真實 HTTP 測試。首次簽章不同，啟動程式成功從隨附 200 張照片自動重建索引。
+- **Mac Apple Silicon**：macOS 15.5／Python 3.13.5，使用從 GitHub 另行 clone、含空格與中文字的目錄及獨立虛擬環境。`--check` 及 HTTP 測試通過；200 張照片 SHA256 核對一致，隨附索引沒有重建，也不需要原專案的 Hugging Face blobs 快取。Mac 的大型 LFS 下載途中遇到網絡中斷，因此以本機同 SHA256 權重補入該 clone，再離線執行；**Mac 的整段網絡下載沒有完成驗證**。
+
+兩個環境的 `/health` 均回報 `indexed: 200`、`demo: false`，`/docs` 可讀。相同三張庫內查詢的結果如下：
+
+| 查詢題材 | 候選數 | 回傳數 |
+| --- | --- | --- |
+| 食物 | 22 | 6 |
+| 風景 | 34 | 6 |
+| 人像 | 2 | 2 |
+
+每個環境的 14 個結果圖片網址全部可讀，內容與 catalog 對應原檔一致；分數門檻、拍法欄位、參考理由及 `Cache-Control: no-store` 均通過，錯誤圖片回傳 422。這是啟動與 API 流程驗證，不是獨立推薦品質評估，也不能代表所有硬件與系統版本。
+
+另有 14 個暫時行為測試通過，涵蓋索引搬移及重開、資料列綁定、模型簽章、缺少權重、壞損索引及首次重建。驗收後移除暫時測試程式與驗證分支，不增加正式安裝依賴。隨附模型為 1,500,800,904 bytes，SHA256 為 `612923381c76ec5a9bed335d1c48827e3f2e506ac31b044b63b2031fadee6a0b`。
+
+若 clone 提示大型模型下載中斷，保留已下載的 repository，進入該目錄後重試 `git lfs pull`。若同時出現 `Clone succeeded, but checkout failed`，先執行 `git restore --source=HEAD --staged --worktree .`，再執行 `git lfs pull`；這只適用於剛 clone、尚未修改任何檔案的目錄，避免覆蓋自己的改動。完整權重就緒後再執行 `--check`。
+
 ### 既有驗證記錄
 
 以下是替換儲存層前的歷史記錄，當時使用 Qdrant，不能代替 NumPy 版本的驗收。
