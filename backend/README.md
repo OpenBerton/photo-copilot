@@ -4,17 +4,20 @@
 
 ## 啟動
 
-需要 Python 3.11+ 與 [uv](https://docs.astral.sh/uv/getting-started/installation/)。本次驗證使用 Python 3.13、CPU；完整套件版本固定在 `uv.lock`。以下在 repository 根目錄執行：
+組員先按[根目錄 README](../README.md#組員取得後端並試用) 安裝 Git LFS、clone **`feat/reference-recommendation` 分支**，並執行 `git lfs pull`。模型、200 張照片與可用索引都已隨專案提供，不必自行找圖或重新訓練。請勿以一般 ZIP 下載代替 Git LFS；缺少權重時，啟動程式會明確報錯，不會把 LFS 指標當作模型載入。
 
-預設配置使用本機的 200 張 Commons 照片；照片不隨 GitHub 程式碼提供，以下正式啟動流程需先備妥對應圖片。首次取得專案、尚未準備圖庫時，請先使用[隨附五張照片的示例啟動流程](#示例與假設)，或按「自訂圖庫與更新」準備自己的照片及 catalog。
+需要 [uv](https://docs.astral.sh/uv/getting-started/installation/)，使用 Python 3.13、CPU；`uv` 可自動準備 Python 與 `uv.lock` 中的套件。目前鎖定的 PyTorch 安裝包提供 Windows x64 與 Apple Silicon Mac（macOS 14 或以上）；Intel Mac、Windows ARM 未包含在這組安裝包內。首次安裝依賴需要網絡；模型與圖庫初次 clone 約 1.5 GB，另需套件及執行環境的磁碟空間。以下在 repository 根目錄執行，Windows PowerShell 與 macOS 終端使用相同指令：
 
 ```sh
-uv sync --project backend --locked --no-dev
-uv run --project backend --locked --no-dev python -m photocopilot.index
-uv run --project backend --locked --no-dev uvicorn photocopilot.api:app --host 127.0.0.1 --port 8000 --workers 1
+uv run --project backend --locked --no-dev --python 3.13 python -m photocopilot.run --check
+uv run --project backend --locked --no-dev --python 3.13 python -m photocopilot.run
 ```
 
-第一次建立索引會下載固定版本的 `google/siglip2-base-patch16-224`。模型存在 `backend/.cache/models/`，NumPy 索引存在 `backend/.data/numpy-index/`；兩者都不提交 Git。新版不需要 Qdrant。權重已下載後，可設定 `HF_HUB_OFFLINE=1` 完全離線啟動及查詢。取景圖片只在本機記憶體處理，不保存為圖庫或送往外部模型服務。
+`--check` 不啟動常駐服務，而是檢查索引與圖片資料，實際執行推薦並回報結果；成功後執行第二行啟動 API。啟動程式使用隨附的 `google/siglip2-base-patch16-224` 固定版本權重，不需要 Hugging Face 帳號、API key 或 Docker。
+
+模型在 `backend/.cache/models/`，NumPy 索引在 `backend/.data/numpy-index/`。索引的照片路徑相對於索引位置保存，因此 clone 到不同電腦或目錄仍可使用。啟動程式會嚴格比較當前模型／前處理簽章；若索引尚未建立，或同一模型因作業系統的套件版本差異而簽章不一致，會先以隨附照片和當前模型整批重建，再開始服務，不會略過簽章校驗。這不是訓練模型；只需初次建立相容索引，之後可直接使用。壞損索引、不同模型版本、缺少照片或權重會報錯，需修復相應檔案。
+
+依賴安裝及完整資料下載完成後，後端的模型推論、索引建立與查詢不需外部模型服務。取景圖片只在本機記憶體處理，不保存為圖庫或送往外部推論服務。
 
 瀏覽 `http://127.0.0.1:8000/docs` 操作 API。另一個終端可執行：
 
@@ -23,6 +26,8 @@ curl --fail http://127.0.0.1:8000/health
 curl --fail -X POST http://127.0.0.1:8000/recommend \
   -F 'image=@backend/sample_images/coffee.png' -F 'limit=6'
 ```
+
+上述 `curl` 範例適用 macOS／Linux；Windows 可直接使用 `/docs`，或以 `curl.exe` 執行相同請求並將指令寫成一行。
 
 `image` 是 JPEG、PNG 或靜態 WebP 檔案；`limit` 可省略，預設 6，允許 1–30。候選不足、去重後不足或門檻過高時，結果可少於要求數量，包括 0 張。圖庫自身圖片作為查詢時可以回傳它本身；去重作用於推薦結果中的圖片之間。
 
@@ -49,13 +54,15 @@ curl --fail -X POST http://127.0.0.1:8000/recommend \
 
 `image_path` 是同一 API 的相對圖片網址，不是伺服器檔案路徑。`GET /images/{id}` 僅讀取已建立索引的圖片。參考理由只引用 JSON 中提供的拍法，不會聲稱模型辨認了未提供的主體或美感。分數不是「有用的概率」。
 
-無索引時 `/health`、`/recommend` 回傳 503；超出檔案大小回傳 413，缺少圖片、錯誤格式或超出像素限制回傳 422。被索引的圖片已刪除時，圖片網址回傳 410。檔案預設上限 10 MiB、20 百萬像素；請求本體另限檔案上限加 64 KiB multipart 包裝，含沒有 Content-Length 的串流請求。
+直接啟動 `photocopilot.api:app` 而沒有索引時，`/health`、`/recommend` 回傳 503；上方共用啟動入口會先建好索引。超出檔案大小回傳 413，缺少圖片、錯誤格式或超出像素限制回傳 422。被索引的圖片已刪除時，圖片網址回傳 410。檔案預設上限 10 MiB、20 百萬像素；請求本體另限檔案上限加 64 KiB multipart 包裝，含沒有 Content-Length 的串流請求。
 
 ## 預設 Commons 圖庫
 
 預設 `config.toml` 指向 `commons_catalog.json`。這份圖庫包含 200 張 Wikimedia Commons 的 Featured／Quality 照片：人像 67 張、風景 67 張、食物 66 張；資料擷取日期為 2026-10-29。候選照片經 AI 逐張縮圖篩選，排除畫作、掃描封面、明顯重複及不適合的題材。這些站內評選和視覺篩選是選材依據，尚未量測它們對本程式的檢索品質，也不代表已完成獨立人工美感或攝影教學評估。
 
-照片保存在 `backend/.data/commons200/images/commons-<pageid>.jpg`，目前只保留 catalog 使用的 200 張；未入庫的候選照片、收集腳本及選材中間資料已清理。每張圖片的作者、檔案頁、授權及縮放處理記錄保存在 catalog 的 `source`，完整署名另見 [COMMONS_ATTRIBUTION.md](COMMONS_ATTRIBUTION.md)。本機照片和向量索引位於 Git 忽略的 `.data/`；catalog 與署名文件則保留在專案中，因此取得程式碼後仍需備妥對應照片才能重建索引。
+照片保存在 `backend/.data/commons200/images/commons-<pageid>.jpg`，目前只保留 catalog 使用的 200 張；未入庫的候選照片、收集腳本及選材中間資料已清理。每張圖片的作者、檔案頁、授權及縮放處理記錄保存在 catalog 的 `source`，完整署名另見 [COMMONS_ATTRIBUTION.md](COMMONS_ATTRIBUTION.md)。這 200 張照片、catalog、署名和目前有效的 NumPy 索引均隨 GitHub 專案提供。`.data/` 內其他個人資料、實驗及舊世代不會自動納入 Git。
+
+SigLIP 2 的模型說明與授權為隨附 snapshot 內的 `README.md`、`LICENSE.txt`，位置在 `.cache/models/models--google--siglip2-base-patch16-224/snapshots/75de2d55ec2d0b4efc50b3e9ad70dba96a7b2fa2/`。模型權重採 Git LFS，其他個人模型快取不納入提交。更新任何已分享的照片、標籤或模型時，須一併更新相應來源記錄、完整索引世代及 `current.json`，避免組員取得不同版本的資料。
 
 入庫是用既有 SigLIP 2 權重編碼圖片並建立向量索引，沒有訓練或微調模型。`angle`、`shot_size`、`composition` 經 AI 視覺篩選時保守標註，不確定的欄位填 `null`；未知拍法不會產生多樣性獎勵或參考理由。這些標註尚未經獨立人工覆核。
 
@@ -88,10 +95,10 @@ curl --fail -X POST http://127.0.0.1:8000/recommend \
 正式資料的命令不加 `--allow-demo`：
 
 ```sh
-uv run --project backend --locked --no-dev python -m photocopilot.index
+uv run --project backend --locked --no-dev --python 3.13 python -m photocopilot.index
 ```
 
-自訂配置可用 `python -m photocopilot.index --config /path/to/config.toml`；API 則設定 `PHOTOCOPILOT_CONFIG=/path/to/config.toml`。模型、版本、前處理或相關套件版本改變時，需重建索引，API 不會混用不一致的向量。
+自訂配置可用 `python -m photocopilot.index --config /path/to/config.toml`；直接啟動 API 則設定 `PHOTOCOPILOT_CONFIG=/path/to/config.toml`。模型、版本、前處理或相關套件版本改變時，需重建索引，API 不會混用不一致的向量。共用啟動程式 `photocopilot.run` 會在簽章不一致時執行這一步；圖庫內容或標籤修改後，仍請主動使用上述索引命令重建。
 
 ## 檢索、去重與多樣性
 
@@ -120,7 +127,7 @@ ranking_score = (U + repetition_weight) / 三項權重總和
 - JSON 保存依序排列的照片 ID、路徑、拍法標籤、題材及去重指紋等資料，以及模型／前處理簽章、圖庫雜湊、照片數量和向量維度。
 - `current.json` 保存目前世代及向量、照片資料檔案的 SHA256。完整資料寫入後才原子替換這個檔案；載入時校驗雜湊、資料數量、唯一 ID、維度及向量有效性，避免不同世代或不同順序的向量與照片混用。
 
-請修改來源 catalog 後重建，**不要直接修改已生成的索引 JSON**。模型簽章不同時，API 拒絕使用索引；先依相同模型與前處理重新建立。索引載入不需要 pickle。
+請修改來源 catalog 後重建，**不要直接修改已生成的索引 JSON**。照片路徑保存為相對於索引目錄的路徑，載入時再解析到當前電腦，不記錄開發者的絕對路徑。模型簽章不同時，API 拒絕使用索引；`photocopilot.run` 會先用當前模型與前處理重新建立。索引載入不需要 pickle。
 
 API 啟動時載入完整索引，後續搜尋不讀寫資料庫。索引可在 API 運行期間另建新世代；已運行的 API 保留啟動時的快照，必須重新啟動才採用新世代。因此這個方式適合偶爾整批更新，不提供即時增刪圖片。圖庫及模型都佔用程序記憶體；沒有 Qdrant 的單程序目錄鎖，但每個 worker 仍會分別載入模型及索引，所以啟動範例維持 `--workers 1`。影像推論仍在工作執行緒處理，模型操作仍有執行緒同步。
 

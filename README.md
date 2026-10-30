@@ -25,6 +25,25 @@ FYP 攝影輔助 Android App，目標是根據拍攝場景及參考照片，提�
 
 啟動、JSON 圖庫格式、可調權重及示例資料限制見 [backend/README.md](backend/README.md)。預設圖庫為 200 張 Wikimedia Commons 精選／優質照片（人像 67、風景 67、食物 66），逐圖來源與授權見 [署名清單](backend/COMMONS_ATTRIBUTION.md)。正式圖庫只索引已標記 `approved: true` 的照片；原五張示例保留作獨立測試資料，不納入預設索引。新圖庫的 AI 視覺篩選和拍法標註尚未經獨立人工覆核或推薦品質評估。
 
+### 組員取得後端並試用
+
+這份成果在 **`feat/reference-recommendation` 分支**。模型權重使用 Git LFS 保存；200 張照片、署名、圖庫 JSON 和可用的 NumPy 索引也一併提供，不需要自行收集照片或先訓練模型。
+
+目前鎖定套件提供 Windows x64 及 Apple Silicon Mac（macOS 14 或以上）的 Python 3.13 安裝包。先安裝 [Git LFS](https://git-lfs.com/) 及 [uv](https://docs.astral.sh/uv/getting-started/installation/)，再開啟 PowerShell 或終端執行。首次下載約 1.5 GB 的模型與圖庫，安裝 Python／套件另需網絡和磁碟空間；完成時間取決於網速。Intel Mac、Windows ARM 的安裝不在這組套件的已提供範圍內。
+
+```sh
+git lfs install
+git clone --branch feat/reference-recommendation --single-branch https://github.com/OpenBerton/photo-copilot.git
+cd photo-copilot
+git lfs pull
+uv run --project backend --locked --no-dev --python 3.13 python -m photocopilot.run --check
+uv run --project backend --locked --no-dev --python 3.13 python -m photocopilot.run
+```
+
+`--check` 會檢查隨附資料，並用真實模型進行推薦；成功後執行最後一行啟動 API，再開啟 <http://127.0.0.1:8000/docs> 上傳照片試用。`uv` 會準備 Python 3.13 與鎖定的依賴，無須 Docker 或手動啟用虛擬環境。模型使用隨附的固定版本，不需再次從 Hugging Face 下載。若同一模型在當前系統的前處理／套件簽章與隨附索引不同，啟動程式會先從這 200 張照片重建相容索引，首次啟動因此較久；仍會保留嚴格簽章與資料完整性檢查。這不表示已在上述所有系統實機驗證。
+
+已經 clone 的組員先切換到上述分支並更新，再執行 `git lfs pull` 和同一組啟動指令。請使用 Git clone；GitHub 的一般 ZIP 下載可能只包含模型的 LFS 指標，不能代替完整權重。Android App 仍須在 Android Studio 建置，且尚未連接這個 API。
+
 ## 開始使用
 
 ### 開發環境
@@ -112,4 +131,4 @@ Android 測試原始碼與專用依賴已移除，發佈版只使用 `src/main/`
 - 一個工作項目使用一個分支，例如 `feat/reference-overlay`；PR 說明變更、驗證結果及未完成部分，由另一位組員 review 後合併。
 - `main` 保持可編譯、可啟動。Android 程式變更完成建置與 lint；相機或介面修改另在裝置確認操作。後端變更執行 Ruff 檢查，並確認 API 上傳和圖片讀取。
 - 功能或啟動方式改變時，同步更新這兩份文件。
-- 不提交個人 SDK 路徑、IDE 設定、密鑰、編譯產物、模型權重或研究參與者影像。
+- 不提交個人 SDK 路徑、IDE 設定、密鑰、編譯產物或研究參與者影像。專案指定的 SigLIP 2 權重透過 Git LFS 保存，公開授權的圖庫照片與有效索引一併版本管理；其他模型快取及本機產物仍不提交。

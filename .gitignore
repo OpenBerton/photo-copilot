@@ -16,6 +16,19 @@ captures/
 __pycache__/
 *.pyc
 .ruff_cache/
-backend/.cache/
-backend/.data/
+# Share only the pinned model snapshot; leave transient Hugging Face caches local.
+backend/.cache/*
+!backend/.cache/models/
+backend/.cache/models/*
+!backend/.cache/models/models--google--siglip2-base-patch16-224/
+backend/.cache/models/models--google--siglip2-base-patch16-224/*
+!backend/.cache/models/models--google--siglip2-base-patch16-224/snapshots/
+backend/.cache/models/models--google--siglip2-base-patch16-224/snapshots/*
+!backend/.cache/models/models--google--siglip2-base-patch16-224/snapshots/75de2d55ec2d0b4efc50b3e9ad70dba96a7b2fa2/
+# Share approved photos and index generations, not one-off local reports.
+backend/.data/*
+!backend/.data/commons200/
+backend/.data/commons200/*
+!backend/.data/commons200/images/
+!backend/.data/numpy-index/
 backend/dist/

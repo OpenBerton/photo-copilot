@@ -19,6 +19,8 @@
 uv run --project backend --locked --no-dev python -m photocopilot.index
 ```
 
+後續團隊共用更新：指定模型權重改以 Git LFS 保存，200 張公開授權照片與目前 NumPy 世代一併版本管理。索引路徑改為相對路徑，讓 clone 到不同目錄仍可解析照片；資料修改後會重建對應雜湊，不跳過完整性校驗。啟動入口 `photocopilot.run` 使用隨附權重，若當前環境的模型／前處理簽章不同，先重新編碼隨附圖庫，再啟動。下列遷移結果是當時測量值，並非對所有組員電腦速度的保證；目前取得專案及試用步驟見 [README.md](README.md)。
+
 ## 搜尋結果比較
 
 同一電腦、同一組既有向量、cosine 門檻 `0.65`、候選上限 `200`，比較舊本機 Qdrant 與 NumPy：

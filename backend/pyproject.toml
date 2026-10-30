@@ -27,6 +27,7 @@ packages = ["photocopilot"]
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+extend-exclude = [".cache", ".data"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]

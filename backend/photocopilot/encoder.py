@@ -96,6 +96,8 @@ class SiglipEncoder:
         revision: str,
         cache_dir: Path,
         device: str = "cpu",
+        *,
+        local_files_only: bool = False,
     ) -> None:
         if not re.fullmatch(r"[a-fA-F0-9]{40}", revision):
             raise ValueError("Model revision must be an immutable 40-character commit SHA")
@@ -106,7 +108,11 @@ class SiglipEncoder:
         from transformers import AutoConfig, AutoImageProcessor, SiglipVisionModel
 
         config = AutoConfig.from_pretrained(
-            model_id, revision=revision, cache_dir=str(cache_dir), trust_remote_code=False
+            model_id,
+            revision=revision,
+            cache_dir=str(cache_dir),
+            trust_remote_code=False,
+            local_files_only=local_files_only,
         )
         if config.model_type != "siglip":
             raise ValueError("This encoder requires a SigLIP 2 FixRes (siglip) checkpoint")
@@ -119,6 +125,7 @@ class SiglipEncoder:
             cache_dir=str(cache_dir),
             trust_remote_code=False,
             use_fast=False,
+            local_files_only=local_files_only,
         )
         self._model, loading_info = SiglipVisionModel.from_pretrained(
             model_id,
@@ -127,6 +134,7 @@ class SiglipEncoder:
             config=config.vision_config,
             output_loading_info=True,
             trust_remote_code=False,
+            local_files_only=local_files_only,
         )
         if loading_info["missing_keys"] or loading_info["mismatched_keys"]:
             raise ValueError("The checkpoint does not contain all required vision weights")

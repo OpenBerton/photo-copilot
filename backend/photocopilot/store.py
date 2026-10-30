@@ -3,6 +3,8 @@
 JSON records are bound to corresponding normalized .npy rows. current.json commits
 the generation after both files are complete. Existing readers keep their loaded
 snapshot; earlier generations remain available for concurrent startup readers.
+New snapshots keep photo and catalog paths relative to the index directory so a
+checkout can move between machines without rebuilding unchanged vectors.
 """
 
 import hashlib
@@ -14,7 +16,7 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from io import BytesIO
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from threading import RLock
 from uuid import uuid4
 
@@ -25,6 +27,7 @@ from photocopilot.domain import Candidate
 _SCHEMA_VERSION = 1
 _GENERATION = re.compile(r"[a-f0-9]{32}")
 _DIGEST = re.compile(r"[a-f0-9]{64}")
+_PATH_BASE = "index_directory"
 logger = logging.getLogger(__name__)
 
 
@@ -111,6 +114,24 @@ def _row_digest(vector: np.ndarray) -> str:
     return hashlib.sha256(vector.tobytes(order="C")).hexdigest()
 
 
+def _relative_path(value: str, directory: Path) -> str:
+    try:
+        return Path(os.path.relpath(Path(value).resolve(), directory)).as_posix()
+    except ValueError as error:
+        raise ValueError("Index images and catalog must be on the same filesystem drive") from error
+
+
+def _resolved_path(value: str, directory: Path) -> str:
+    if (
+        not isinstance(value, str)
+        or not value.strip()
+        or Path(value).is_absolute()
+        or PureWindowsPath(value).drive
+    ):
+        raise ValueError("Portable index paths must be relative to the index directory")
+    return str((directory / value).resolve())
+
+
 @dataclass(frozen=True)
 class _Snapshot:
     vectors: np.ndarray
@@ -142,7 +163,7 @@ class NumpyStore:
     """
 
     def __init__(self, path: Path):
-        self._path = Path(path)
+        self._path = Path(path).resolve()
         self._lock = RLock()
         self._closed = False
         self._snapshot = self._load()
@@ -212,6 +233,11 @@ class NumpyStore:
             ):
                 raise ValueError("Index metadata belongs to a different generation")
             metadata = _validate_metadata(document.get("metadata"))
+            path_base = document.get("path_base")
+            if path_base not in (None, _PATH_BASE):
+                raise ValueError("Unsupported index path base")
+            if path_base == _PATH_BASE and "catalog_path" in metadata:
+                metadata["catalog_path"] = _resolved_path(metadata["catalog_path"], self._path)
             count, dimension = metadata.get("count"), metadata.get("vector_size")
             if not _positive_int(count) or not _positive_int(dimension):
                 raise ValueError("Index count and vector dimension must be positive integers")
@@ -233,6 +259,8 @@ class NumpyStore:
                 payload = _record_payload(record)
                 if record.get("vector_sha256") != _row_digest(vectors[row]):
                     raise ValueError("Index record is not bound to its vector row")
+                if path_base == _PATH_BASE:
+                    payload["image_path"] = _resolved_path(payload["image_path"], self._path)
                 payloads.append(payload)
             ids = [record["id"] for record in payloads]
             if len(set(ids)) != count:
@@ -269,6 +297,8 @@ class NumpyStore:
             if len(records) == 0 or len(records) != len(vectors):
                 raise ValueError("A nonempty catalog needs exactly one vector per record")
             payloads = [_record_payload(record) for record in records]
+            for payload in payloads:
+                payload["image_path"] = str(Path(payload["image_path"]).resolve())
             ids = [record["id"] for record in payloads]
             if len(set(ids)) != len(ids):
                 raise ValueError("Reference IDs must be unique")
@@ -279,13 +309,25 @@ class NumpyStore:
             matrix = np.asarray(unit_vectors, dtype=np.float64)
             index_metadata = _validate_metadata(metadata)
             index_metadata.update(count=len(records), vector_size=dimension)
+            stored_metadata = _json_copy(index_metadata)
+            if "catalog_path" in index_metadata:
+                catalog_path = index_metadata["catalog_path"]
+                if not isinstance(catalog_path, str) or not catalog_path.strip():
+                    raise ValueError("Catalog path must be a nonempty string")
+                index_metadata["catalog_path"] = str(Path(catalog_path).resolve())
+                stored_metadata["catalog_path"] = _relative_path(catalog_path, self._path)
             generation = uuid4().hex
             document = {
                 "schema_version": _SCHEMA_VERSION,
                 "generation": generation,
-                "metadata": index_metadata,
+                "path_base": _PATH_BASE,
+                "metadata": stored_metadata,
                 "records": [
-                    {**record, "vector_sha256": _row_digest(matrix[row])}
+                    {
+                        **record,
+                        "image_path": _relative_path(record["image_path"], self._path),
+                        "vector_sha256": _row_digest(matrix[row]),
+                    }
                     for row, record in enumerate(payloads)
                 ],
             }
@@ -329,12 +371,14 @@ class NumpyStore:
                         except OSError:
                             logger.warning("Could not remove unpublished index file %s", path)
                 raise
-            # Persist the directory entry after committing the manifest.
-            descriptor = os.open(self._path, os.O_RDONLY)
-            try:
-                os.fsync(descriptor)
-            finally:
-                os.close(descriptor)
+            # Windows does not support opening directories for fsync. Files are
+            # still flushed before the atomic manifest replacement on every OS.
+            if os.name != "nt":
+                descriptor = os.open(self._path, os.O_RDONLY)
+                try:
+                    os.fsync(descriptor)
+                finally:
+                    os.close(descriptor)
             matrix.flags.writeable = False
             self._snapshot = _Snapshot(
                 matrix,
