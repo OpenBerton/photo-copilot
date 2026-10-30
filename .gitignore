@@ -15,4 +15,7 @@ captures/
 .venv/
 __pycache__/
 *.pyc
-.pytest_cache/
+.ruff_cache/
+backend/.cache/
+backend/.data/
+backend/dist/
