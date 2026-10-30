@@ -38,7 +38,7 @@ FYP 攝影輔助 Android App，目標是根據拍攝場景及參考照片，提�
 | 程式與畫面 | Java 11 原始碼、XML Views |
 | 相機 | CameraX 1.6.2 |
 
-Gradle JDK 選用 Android Studio 內附且相容的 JDK；Java 11 是原始碼相容級別，與執行 Gradle 的 JDK 版本不同。
+專案以 `frontend/gradle/gradle-daemon-jvm.properties` 指定 Gradle daemon 使用 Java 25；本機沒有對應 JDK 時，Gradle 可能需要下載。Java 11 是原始碼相容級別，與執行 Gradle 的 JDK 版本不同。
 
 ### 在 Android Studio 啟動
 
@@ -76,20 +76,19 @@ photo-copilot/
 └── frontend/                # Android Studio 專案
     ├── app/
     │   └── src/
-    │       ├── main/
-    │       │   ├── java/com/yrf3/photocopilot/
-    │       │   │   ├── MainActivity.java
-    │       │   │   ├── camera/
-    │       │   │   └── reference/
-    │       │   └── res/     # 版面、圖示、字串及示範圖片
-    │       └── androidTest/ # 裝置整合與介面測試
+    │       └── main/
+    │           ├── java/com/yrf3/photocopilot/
+    │           │   ├── MainActivity.java
+    │           │   ├── camera/
+    │           │   └── reference/
+    │           └── res/     # 版面、圖示、字串及示範圖片
     ├── gradle/wrapper/
     └── gradlew
 ```
 
 修改功能前先看 [ARCHITECTURE.md](ARCHITECTURE.md)，確認程式所屬模組與責任。
 
-## 建置與測試
+## 建置與檢查
 
 命令列需先設定相容的 `JAVA_HOME` 及 Android SDK 路徑。以下指令在 repository 根目錄開始執行；Windows 將 `./gradlew` 改為 `gradlew.bat`。
 
@@ -102,39 +101,15 @@ cd frontend
 
 APK 位於 `frontend/app/build/outputs/apk/debug/app-debug.apk`，lint 報告位於 `frontend/app/build/reports/lint-results-debug.html`。
 
-### 裝置測試
+### 發佈前檢查
 
-測試位於 `frontend/app/src/androidTest/`，涵蓋相機流程、旋轉版面、縮放及示範照片選擇。需先啟動有可用相機的測試手機或模擬器，在 `frontend/` 執行：
+Android 測試原始碼與專用依賴已移除，發佈版只使用 `src/main/` 的程式及素材。可用 `./gradlew :app:assembleRelease` 產生未簽署的 release APK；正式發佈仍須使用自己的簽署設定。
 
-```sh
-./gradlew :app:connectedDebugAndroidTest
-```
-
-使用全新安裝或已清除此 App 資料的測試環境。測試會授予權限、拍攝照片，並在完成後刪除本次建立的測試照片。測試報告位於 `frontend/app/build/reports/androidTests/connected/`。
-
-<details>
-<summary>單獨測試相機權限流程</summary>
-
-執行前需在測試裝置安裝 App 與測試 APK。以下指令會清除測試裝置上的 Photo Copilot 資料，只在專用測試環境執行。每個案例開始前均需清除資料；在 `frontend/` 執行：
-
-```sh
-adb shell pm clear com.yrf3.photocopilot
-adb shell am instrument -w \
-  -e class com.yrf3.photocopilot.CameraPreviewTest \
-  -e require_fresh_permission true -e permission_only true \
-  -e permission_case allow \
-  com.yrf3.photocopilot.test/androidx.test.runner.AndroidJUnitRunner
-```
-
-`permission_case` 可選 `allow`（首次允許）、`retry`（拒絕後重試）或 `blocked`（重複拒絕後顯示設定入口，需 Android 11 以上）。其他介面測試會預先授予權限，不能代替這組獨立案例。
-
-</details>
-
-模擬器測試不能代替真機驗證。實體鏡頭、閃光效果、各廠商的設定與圖片檢視器，以及 Android 8／9 儲存權限流程仍需在對應裝置確認。影響相機流程的修改，另檢查旋轉、背景返回、權限拒絕與恢復、照片方向及保存失敗情況。
+在真機確認相機權限、拍照與保存、切換鏡頭、縮放、旋轉及背景返回。實體鏡頭、閃光、各廠商設定與圖片檢視器，以及 Android 8／9 儲存權限流程需要對應裝置確認。
 
 ## 團隊協作
 
 - 一個工作項目使用一個分支，例如 `feat/reference-overlay`；PR 說明變更、驗證結果及未完成部分，由另一位組員 review 後合併。
-- `main` 保持可編譯、可啟動。程式變更提交前完成建置與 lint；相機或介面修改另執行相關裝置測試。
+- `main` 保持可編譯、可啟動。Android 程式變更完成建置與 lint；相機或介面修改另在裝置確認操作。後端變更執行 Ruff 檢查，並確認 API 上傳和圖片讀取。
 - 功能或啟動方式改變時，同步更新這兩份文件。
 - 不提交個人 SDK 路徑、IDE 設定、密鑰、編譯產物、模型權重或研究參與者影像。

@@ -1,6 +1,6 @@
 # Photo Copilot 架構
 
-本文件說明目前的程式責任與資料流程，以及尚未實作功能的接入方式。環境設定、操作與測試指令見 [README.md](README.md)。
+本文件說明目前的程式責任與資料流程，以及尚未實作功能的接入方式。環境設定、操作與檢查指令見 [README.md](README.md)。
 
 ## 整體結構
 
@@ -47,7 +47,7 @@ Java 根 package：`com.yrf3.photocopilot`，位於 `frontend/app/src/main/java/
 | `reference/DemoReferences` | 集中提供四張內建示範照片 |
 | `reference/ReferencePicker` | 底部選擇面板、縮圖載入、選取／清除、空資料及載入失敗狀態 |
 
-版面、圖示、字串與圖片沿用 `frontend/app/src/main/res/`；裝置測試位於 `frontend/app/src/androidTest/`。目前沒有獨立的 `src/test/` 單元測試。
+版面、圖示、字串與圖片沿用 `frontend/app/src/main/res/`；專案已移除測試原始碼及專用依賴。
 
 ## 目前資料流程
 
@@ -166,4 +166,4 @@ API 啟動時一次載入索引，查詢以正規化向量內積計算 cosine，
 3. 將 Android 取景及參考面板接入推薦 API，再接通輪廓疊圖／移動／縮放，按需要補場景編輯及模型比較。
 4. 加入構圖與參數建議，再進行整合及用戶評估。
 
-每次改動依功能選擇建置、lint、裝置測試及真機檢查；指令與驗證限制見 README。架構改變時更新本文件，保留已實作與待實作的區分。
+每次改動依功能選擇建置、lint、API 操作及真機檢查；指令與驗證限制見 README。架構改變時更新本文件，保留已實作與待實作的區分。

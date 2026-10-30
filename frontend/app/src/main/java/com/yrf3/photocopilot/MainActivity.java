@@ -385,10 +385,6 @@ public class MainActivity extends ComponentActivity {
         control.setAlpha(enabled ? 1f : 0.35f);
     }
 
-    CameraSession getCameraSession() {
-        return cameraSession;
-    }
-
     @Override
     protected void onSaveInstanceState(Bundle state) {
         state.putBoolean(CAMERA_PERMISSION_PENDING, cameraPermissionPending);
