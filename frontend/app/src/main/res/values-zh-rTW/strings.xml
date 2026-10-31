@@ -24,14 +24,13 @@
     <string name="zoom_adjust">調整縮放倍率</string>
     <string name="photo_cannot_open">沒有可用的照片檢視器，相片仍已存入相簿。</string>
     <string name="reference_photos">參考照片</string>
-    <string name="reference_demo">示範照片</string>
     <string name="reference_clear">取消選擇</string>
     <string name="reference_close">關閉參考照片</string>
     <string name="reference_selected">參考：%1$s</string>
-    <string name="reference_empty">暫無參考照片。</string>
+    <string name="reference_empty">暫無相近的參考照片。</string>
     <string name="reference_load_error">有照片未能載入。</string>
-    <string name="reference_waterfront">海邊人像</string>
-    <string name="reference_street">街道人像</string>
-    <string name="reference_coast">海岸風景</string>
-    <string name="reference_mountains">山景</string>
+    <string name="reference_loading">正在尋找參考照片…</string>
+    <string name="reference_request_error">未能載入參考照片，請檢查連線後重試。</string>
+    <string name="reference_capture_error">相機預覽尚未準備好，請重試。</string>
+    <string name="reference_network_permission">請允許附近裝置權限，以連接電腦上的推薦服務。</string>
 </resources>

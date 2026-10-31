@@ -4,7 +4,7 @@
   "references": [
     {
       "id": "waterfront",
-      "image_path": "../frontend/app/src/main/res/drawable-nodpi/reference_waterfront.png",
+      "image_path": "sample_images/reference_waterfront.png",
       "approved": false,
       "category": "portrait",
       "tags": {
@@ -13,11 +13,11 @@
         "composition": "subject_left"
       },
       "duplicate_group": null,
-      "source": "Existing Android AI-generated demo asset, documented in ../README.md. Reused only to exercise the recommendation pipeline; not an aesthetic-reviewed reference."
+      "source": "AI-generated sample asset formerly bundled with the Android app, documented in ../README.md. Backend demonstration only; not an aesthetic-reviewed reference."
     },
     {
       "id": "street",
-      "image_path": "../frontend/app/src/main/res/drawable-nodpi/reference_street.png",
+      "image_path": "sample_images/reference_street.png",
       "approved": false,
       "category": "portrait",
       "tags": {
@@ -26,11 +26,11 @@
         "composition": "subject_right"
       },
       "duplicate_group": null,
-      "source": "Existing Android AI-generated demo asset, documented in ../README.md. Reused only to exercise the recommendation pipeline; not an aesthetic-reviewed reference."
+      "source": "AI-generated sample asset formerly bundled with the Android app, documented in ../README.md. Backend demonstration only; not an aesthetic-reviewed reference."
     },
     {
       "id": "coast",
-      "image_path": "../frontend/app/src/main/res/drawable-nodpi/reference_coast.png",
+      "image_path": "sample_images/reference_coast.png",
       "approved": false,
       "category": "landscape",
       "tags": {
@@ -39,11 +39,11 @@
         "composition": "foreground_depth"
       },
       "duplicate_group": null,
-      "source": "Existing Android AI-generated demo asset, documented in ../README.md. Reused only to exercise the recommendation pipeline; not an aesthetic-reviewed reference."
+      "source": "AI-generated sample asset formerly bundled with the Android app, documented in ../README.md. Backend demonstration only; not an aesthetic-reviewed reference."
     },
     {
       "id": "mountains",
-      "image_path": "../frontend/app/src/main/res/drawable-nodpi/reference_mountains.png",
+      "image_path": "sample_images/reference_mountains.png",
       "approved": false,
       "category": "landscape",
       "tags": {
@@ -52,7 +52,7 @@
         "composition": "leading_lines"
       },
       "duplicate_group": null,
-      "source": "Existing Android AI-generated demo asset, documented in ../README.md. Reused only to exercise the recommendation pipeline; not an aesthetic-reviewed reference."
+      "source": "AI-generated sample asset formerly bundled with the Android app, documented in ../README.md. Backend demonstration only; not an aesthetic-reviewed reference."
     },
     {
       "id": "coffee",

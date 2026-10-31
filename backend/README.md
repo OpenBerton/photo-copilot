@@ -1,6 +1,6 @@
 # 攝影參考推薦 MVP
 
-輸入一張取景照片，以 SigLIP 2 圖像向量取得內容相關候選，再按拍法標籤選出多樣的參考圖。本版只有後端，尚未接入 Android。
+輸入一張取景照片，以 SigLIP 2 圖像向量取得內容相關候選，再按拍法標籤選出多樣的參考圖。Android 已接入按需取景推薦，模擬器啟動及連線方式見[根目錄 README](../README.md#android-模擬器連接後端)。
 
 ## 啟動
 
@@ -141,7 +141,7 @@ API 啟動時載入完整索引，後續搜尋不讀寫資料庫。索引可在 
 
 ## 示例與假設
 
-`demo_catalog.json` 重用 Android 的四張 AI 生成圖片（兩張人像、兩張風景），以及一張咖啡示例。所有項目維持 `approved: false`，只有明確使用 `--allow-demo` 才納入索引，API 回傳 `demo: true`。
+`demo_catalog.json` 使用 `sample_images/` 內的四張 AI 生成圖片（兩張人像、兩張風景），以及一張咖啡示例。這些示例只保留在後端，不再隨 Android App 打包。所有項目維持 `approved: false`，只有明確使用 `--allow-demo` 才納入索引，API 回傳 `demo: true`。
 
 預設設定使用 Commons 圖庫。若需重現五張示例，先把 `backend/config.toml` 複製為同目錄下的 `backend/demo-config.toml`，保留模型及其他設定，並修改以下兩項：
 
