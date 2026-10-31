@@ -18,7 +18,7 @@ import android.widget.SeekBar;
 import com.yrf3.photocopilot.camera.ZoomRuler;
 import com.yrf3.photocopilot.camera.ZoomControl;
 import com.yrf3.photocopilot.camera.RecentPhoto;
-import com.yrf3.photocopilot.reference.DemoReferences;
+import com.yrf3.photocopilot.reference.ReferenceClient;
 import com.yrf3.photocopilot.reference.ReferencePicker;
 
 import androidx.activity.ComponentActivity;
@@ -42,6 +42,7 @@ public class MainActivity extends ComponentActivity {
     private static final String PERMISSIONS = "camera_permissions";
     private static final String REQUESTED = "requested";
     private static final String CAMERA_PERMISSION_PENDING = "camera_permission_pending";
+    private static final String LOCAL_NETWORK_REQUESTED = "local_network_requested";
 
     private CameraSession cameraSession;
     private TextView status;
@@ -51,6 +52,8 @@ public class MainActivity extends ComponentActivity {
     private ActivityResultLauncher<String> permissionRequest;
     private boolean cameraPermissionPending;
     private ActivityResultLauncher<String> storageRequest;
+    private ActivityResultLauncher<String> localNetworkRequest;
+    private boolean openReferencesAfterPermission;
     private ImageButton shutter;
     private TextView photoStatus;
     private ImageButton switchCamera;
@@ -76,10 +79,23 @@ public class MainActivity extends ComponentActivity {
         super.onCreate(savedInstanceState);
         cameraPermissionPending = savedInstanceState != null
                 && savedInstanceState.getBoolean(CAMERA_PERMISSION_PENDING);
+        openReferencesAfterPermission = savedInstanceState != null
+                && savedInstanceState.getBoolean("reference_after_permission");
         permissionRequest = registerForActivityResult(
                 new ActivityResultContracts.RequestPermission(), granted -> {
                     cameraPermissionPending = false;
                     updateCamera();
+                });
+        localNetworkRequest = registerForActivityResult(
+                new ActivityResultContracts.RequestPermission(), granted -> {
+                    if (granted) {
+                        getSharedPreferences(PERMISSIONS, MODE_PRIVATE).edit()
+                                .remove(LOCAL_NETWORK_REQUESTED).apply();
+                        openReferencesAfterPermission = true;
+                        maybeOpenReferences();
+                    } else {
+                        showPhotoStatus(R.string.reference_network_permission, true);
+                    }
                 });
         storageRequest = registerForActivityResult(
                 new ActivityResultContracts.RequestPermission(), granted -> {
@@ -111,8 +127,10 @@ public class MainActivity extends ComponentActivity {
         saveProgress = findViewById(R.id.save_progress);
         recentPhoto = new RecentPhoto(this, findViewById(R.id.recent_photo),
                 () -> showPhotoStatus(R.string.photo_cannot_open, true));
-        references = new ReferencePicker(this, findViewById(R.id.reference_button), DemoReferences.load(this),
-                savedInstanceState == null ? null : savedInstanceState.getString("reference"));
+        references = new ReferencePicker(this, findViewById(R.id.reference_button),
+                new ReferenceClient(BuildConfig.API_BASE_URL),
+                () -> cameraSession == null ? null : cameraSession.capturePreviewFrame(), savedInstanceState);
+        findViewById(R.id.reference_button).setOnClickListener(view -> requestReferences());
         reopenReferences = savedInstanceState != null && savedInstanceState.getBoolean("reference_open");
         zoomSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
@@ -169,10 +187,7 @@ public class MainActivity extends ComponentActivity {
             if (event == Lifecycle.Event.ON_RESUME) {
                 updateShutter();
                 maybeCaptureAfterPermission();
-                if (reopenReferences) {
-                    reopenReferences = false;
-                    references.show();
-                }
+                maybeOpenReferences();
             }
         });
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (view, windowInsets) -> {
@@ -195,6 +210,11 @@ public class MainActivity extends ComponentActivity {
                         action.setVisibility(View.GONE);
                         updateShutter();
                         maybeCaptureAfterPermission();
+                        maybeOpenReferences();
+                        if (reopenReferences) {
+                            reopenReferences = false;
+                            if (!needsLocalNetworkPermission()) references.showRestored();
+                        }
                     }
 
                     @Override
@@ -252,6 +272,8 @@ public class MainActivity extends ComponentActivity {
 
     @Override
     protected void onPause() {
+        reopenReferences = references.isShowing();
+        references.pause();
         setControlEnabled(shutter, false);
         setControlEnabled(switchCamera, false);
         setControlEnabled(flash, false);
@@ -349,6 +371,7 @@ public class MainActivity extends ComponentActivity {
             return;
         }
         boolean ready = cameraSession.isReadyToCapture() && !captureInProgress;
+        references.setReady(ready);
         setControlEnabled(switchCamera, ready && cameraSession.canSwitchCamera());
         switchCamera.setSelected(cameraSession.getLensFacing() == CameraSelector.LENS_FACING_FRONT);
         setControlEnabled(flash, ready && cameraSession.hasFlash());
@@ -385,15 +408,12 @@ public class MainActivity extends ComponentActivity {
         control.setAlpha(enabled ? 1f : 0.35f);
     }
 
-    CameraSession getCameraSession() {
-        return cameraSession;
-    }
-
     @Override
     protected void onSaveInstanceState(Bundle state) {
         state.putBoolean(CAMERA_PERMISSION_PENDING, cameraPermissionPending);
-        state.putString("reference", references.getSelectedId());
-        state.putBoolean("reference_open", references.isShowing());
+        references.saveState(state);
+        state.putBoolean("reference_open", reopenReferences || references.isShowing());
+        state.putBoolean("reference_after_permission", openReferencesAfterPermission);
         state.putBoolean("grid", gridVisible);
         state.putInt("lens", cameraSession.getLensFacing());
         state.putInt("flash", cameraSession.getFlashMode());
@@ -425,6 +445,44 @@ public class MainActivity extends ComponentActivity {
             getSharedPreferences(PERMISSIONS, MODE_PRIVATE).edit()
                     .putBoolean(STORAGE_REQUESTED, true).apply();
             storageRequest.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        }
+    }
+
+    private boolean needsLocalNetworkPermission() {
+        if (Build.VERSION.SDK_INT < 37) return false;
+        String host = Uri.parse(BuildConfig.API_BASE_URL).getHost();
+        // Literal LAN addresses and local hostnames; never resolve DNS on the UI thread.
+        boolean local = host != null && (host.startsWith("10.") || host.startsWith("192.168.")
+                || host.matches("172\\.(1[6-9]|2[0-9]|3[01])\\..*")
+                || host.endsWith(".local") || !host.contains(".") || host.startsWith("[fc")
+                || host.startsWith("[fd") || host.startsWith("[fe80:"));
+        return local && ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_LOCAL_NETWORK)
+                != PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void requestReferences() {
+        if (needsLocalNetworkPermission()) {
+            if (getSharedPreferences(PERMISSIONS, MODE_PRIVATE).getBoolean(LOCAL_NETWORK_REQUESTED, false)
+                    && !shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_LOCAL_NETWORK)) {
+                openReferencesAfterPermission = true;
+                startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:" + getPackageName())));
+                return;
+            }
+            getSharedPreferences(PERMISSIONS, MODE_PRIVATE).edit()
+                    .putBoolean(LOCAL_NETWORK_REQUESTED, true).apply();
+            localNetworkRequest.launch(Manifest.permission.ACCESS_LOCAL_NETWORK);
+        } else {
+            references.show();
+        }
+    }
+
+    private void maybeOpenReferences() {
+        if (openReferencesAfterPermission && cameraSession != null && cameraSession.isPreviewReady()
+                && !needsLocalNetworkPermission()
+                && getLifecycle().getCurrentState().isAtLeast(Lifecycle.State.RESUMED)) {
+            openReferencesAfterPermission = false;
+            references.show();
         }
     }
 

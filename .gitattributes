@@ -2,3 +2,9 @@
 *.bat text eol=crlf
 gradlew text eol=lf
 *.jar binary
+*.safetensors filter=lfs diff=lfs merge=lfs -text
+backend/.data/numpy-index/* -text
+# Catalog hashes must be identical on Windows and macOS.
+backend/*catalog.json text eol=lf
+# Preserve the upstream model card without applying project whitespace checks.
+backend/.cache/models/**/README.md -whitespace

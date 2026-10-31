@@ -1,6 +1,7 @@
 package com.yrf3.photocopilot.camera;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.hardware.display.DisplayManager;
 import android.os.Handler;
 import android.os.Looper;
@@ -178,6 +179,26 @@ public final class CameraSession {
 
     public boolean isReadyToCapture() {
         return !capturing && isPreviewReady();
+    }
+
+    /** UI thread only: current preview pixels, without controls, grid or FIT_CENTER padding. */
+    public Bitmap capturePreviewFrame() {
+        if (!isPreviewReady()) return null;
+        Bitmap frame = view.getBitmap();
+        if (frame == null) return null;
+        float aspect = getPreviewAspectRatio();
+        if (!Float.isFinite(aspect) || aspect <= 0) {
+            frame.recycle();
+            return null;
+        }
+        int width = frame.getWidth();
+        int height = frame.getHeight();
+        int imageWidth = Math.min(width, Math.max(1, Math.round(height * aspect)));
+        int imageHeight = Math.min(height, Math.max(1, Math.round(width / aspect)));
+        Bitmap cropped = Bitmap.createBitmap(frame, (width - imageWidth) / 2,
+                (height - imageHeight) / 2, imageWidth, imageHeight);
+        if (cropped != frame) frame.recycle();
+        return cropped;
     }
 
     public void restoreControls(int lens, int flash, float zoom) {

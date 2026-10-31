@@ -1,10 +1,10 @@
 # Photo Copilot 架構
 
-本文件說明目前的程式責任與資料流程，以及尚未實作功能的接入方式。環境設定、操作與測試指令見 [README.md](README.md)。
+本文件說明目前的程式責任與資料流程，以及尚未實作功能的接入方式。環境設定、操作與檢查指令見 [README.md](README.md)。
 
 ## 整體結構
 
-目前採用單一 repository、單一 Android `app` 模組，以 Java／XML Views 開發，按功能分 package。已實作部分全部在手機本機執行，尚無後端、模型推論或推薦服務。
+目前採用單一 repository、單一 Android `app` 模組，以 Java／XML Views 開發，按功能分 package。`backend/` 提供 Python／FastAPI 攝影參考推薦 MVP；Android 按使用者操作擷取當前取景，傳到後端並在現有照片面板顯示結果。
 
 ```mermaid
 flowchart TD
@@ -14,8 +14,9 @@ flowchart TD
     D[PhotoStore<br/>建立、發布與清理照片]
     E[MediaStore<br/>手機相簿]
     F[RecentPhoto<br/>最近照片縮圖與開啟]
-    G[ReferencePicker<br/>示範照片選擇]
-    H[DemoReferences / ReferencePhoto<br/>本機示範資料]
+    G[ReferencePicker<br/>取景、請求狀態與照片選擇]
+    H[ReferenceClient / ReferencePhoto<br/>HTTP 推薦與圖片資料]
+    J[FastAPI<br/>推薦及圖庫圖片]
     I[相機畫面元件<br/>CameraLayout、CompositionGrid<br/>ZoomControl、ZoomRuler]
 
     A --> B
@@ -26,7 +27,10 @@ flowchart TD
     F -->|依最近保存的 URI 載入縮圖| E
     A --> F
     A --> G
-    H --> G
+    G -->|JPEG| H
+    H <-->|POST /recommend、GET /images| J
+    H -->|照片與圖片| G
+    B -->|當前預覽影格| G
     A <-->|畫面更新與使用者操作| I
 ```
 
@@ -37,17 +41,17 @@ Java 根 package：`com.yrf3.photocopilot`，位於 `frontend/app/src/main/java/
 | 位置／類別 | 責任 |
 | --- | --- |
 | `MainActivity` | 權限請求與設定入口、組裝元件、連接使用者操作與相機回呼、保存畫面狀態 |
-| `camera/CameraSession` | CameraX 啟動與停止、預覽與拍攝、鏡頭切換、縮放與閃光能力、相機錯誤及預覽方向 |
+| `camera/CameraSession` | CameraX 啟動與停止、預覽與拍攝、鏡頭切換、縮放與閃光能力、相機錯誤及預覽方向；擷取不含介面及預覽黑邊的當前影格 |
 | `camera/PhotoStore` | 建立照片 URI 與輸出串流、發布成功照片、清理未完成照片、記錄最近保存的 URI |
 | `camera/RecentPhoto` | 背景載入最近照片縮圖、修正顯示方向、交由外部圖片檢視器開啟 |
 | `camera/CameraLayout` | 在系統列及螢幕缺口的安全範圍內，維持控制項的裝置相對位置 |
 | `camera/CompositionGrid` | 按實際預覽影像範圍繪製九宮格，排除黑邊 |
 | `camera/ZoomControl`、`camera/ZoomRuler` | 常用倍率、拖動細調刻度、鍵盤與無障礙操作 |
-| `reference/ReferencePhoto` | 示範照片的穩定 ID、本機圖片 URI 與無障礙描述 |
-| `reference/DemoReferences` | 集中提供四張內建示範照片 |
-| `reference/ReferencePicker` | 底部選擇面板、縮圖載入、選取／清除、空資料及載入失敗狀態 |
+| `reference/ReferencePhoto` | 推薦照片的穩定 ID、後端圖片網址與無障礙描述 |
+| `reference/ReferenceClient` | 以原生 `HttpURLConnection` 上傳 JPEG、解析推薦 JSON、下載同源圖片、大小限制、逾時及取消；不新增網絡依賴 |
+| `reference/ReferencePicker` | 使用者觸發取景、背景縮圖編碼及推薦、底部照片格、選取／清除、載入／空結果／失敗重試、忽略過期回應 |
 
-版面、圖示、字串與圖片沿用 `frontend/app/src/main/res/`；裝置測試位於 `frontend/app/src/androidTest/`。目前沒有獨立的 `src/test/` 單元測試。
+版面、圖示、字串與圖片沿用 `frontend/app/src/main/res/`；專案已移除測試原始碼及專用依賴。
 
 ## 目前資料流程
 
@@ -74,18 +78,60 @@ Java 根 package：`com.yrf3.photocopilot`，位於 `frontend/app/src/main/java/
 - 建立、寫入及發布照片均在背景執行；失敗時刪除本次的未完成 URI。
 - 拍攝中停用快門、切鏡、縮放與閃光，避免重複操作。
 
-### 示範照片選擇
+### 取景推薦與照片選擇
 
 ```text
-DemoReferences → List<ReferencePhoto> → ReferencePicker
+參考照片按鈕 → CameraSession.capturePreviewFrame 擷取當前預覽
+             → ReferencePicker 在背景縮放至長邊最多 1280、JPEG 品質 85
+             → ReferenceClient POST /recommend（image、limit=6）
+             → JSON image_path → GET 圖片 → 原有橫向照片格
 使用者選取 → 保存選擇 ID → 更新入口縮圖 → 返回相機
 ```
 
-圖片隨 App 放在 `res/drawable-nodpi/`，由背景執行緒取樣解碼成縮圖。空列表或載入失敗會顯示提示，失敗圖片不可選。這個流程目前只管理選擇狀態，未包含場景分析、排序或輪廓疊圖。
+影格只包含相機影像，排除介面、九宮格及 `FIT_CENTER` 黑邊；不使用快門、不閃光，也不保存到相簿。每次點入口會重新擷取及查詢，沒有連續上傳。照片格沿用原有 120×160 dp 卡片；載入顯示進度，空結果或失敗提供重試，不能載入的圖片不可選。關閉面板、切到背景或新請求會取消未完成工作，並以請求序號忽略過期回應。
+
+前端已移除四張內建測試照片及 `DemoReferences`；後端示例獨立保留在 `backend/sample_images/`。推薦結果尚未用於輪廓疊圖。
+
+Debug 的 `BuildConfig.API_BASE_URL` 預設為 `http://10.0.2.2:8000/`，由 Gradle property `photocopilot.apiBaseUrl` 覆寫。Android 模擬器透過此位址連接電腦上預設綁定 `127.0.0.1:8000` 的後端。主 manifest 宣告 `INTERNET` 及 `ACCESS_LOCAL_NETWORK`；Android 17 連接本機位址前由 Activity 在首次點按時請求系統權限。只有 debug manifest 允許 HTTP，release 使用 HTTPS 後端。
+
+## 後端參考推薦 MVP
+
+2026-10-28：先採 SigLIP 2 整圖向量建立內容相關性的基線，以可編輯的拍法標籤衡量多樣性。美感篩選由圖庫提供者在入庫前完成，後端不另建立審核系統。本版不要求先實作場景描述或 LLM；Android 現已直接上傳取景至推薦 API。
+
+```text
+離線：圖庫 JSON 中已批准的圖片 → 共用編碼／圖片指紋 → .npy 向量及 JSON 新世代
+     → 完整寫入並校驗 → 原子替換 current.json
+查詢：POST /recommend 圖片 → 相同編碼 → cosine 候選最多 200 張
+     → 相關性門檻 → 保守去重 → 拍法覆蓋貪婪重排 → 預設最多 6 張及參考理由
+```
+
+執行程式集中在 `backend/photocopilot/`，沒有為未實作的功能預建 package。後端的開發依賴只保留 Ruff，正式環境以 `--no-dev` 安裝。
+
+| 檔案 | 責任 |
+| --- | --- |
+| `run.py` | 組員共用啟動與流程檢查、隨附資料檢查、簽章不同時從現有圖庫重建相容索引 |
+| `api.py`、`service.py` | HTTP 上傳／圖片讀取、大小限制、推薦流程及執行緒同步 |
+| `encoder.py` | 有限大小的圖片解碼、EXIF／RGB、SigLIP 2 編碼、前處理簽章與去重指紋 |
+| `store.py` | NumPy 精確 cosine 搜尋、向量與照片資料對應校驗、模型簽章、整批索引發布及載入 |
+| `ranking.py`、`domain.py` | 相關性門檻、去重、固定尺度的拍法覆蓋及貪婪選圖 |
+| `catalog.py`、`index.py` | JSON 圖庫載入、批准／示例邊界、離線批次建庫 |
+| `config.py`、`config.toml` | 共用配置、可調權重／門檻與相對路徑規則 |
+
+索引與查詢使用相同的固定模型版本及前處理；簽章不同時要求重新建庫。共用啟動入口先比較簽章，索引缺少或同一模型的環境簽章不同時，以隨附照片重建再啟動 API；不同模型版本或損壞索引則直接報錯，簽章及完整性校驗仍然保留。內容向量不直接當作多樣性特徵；拍法未知標籤不提供覆蓋獎勵。高相似度本身不表示同圖，近似去重還需要圖片指紋證據，已知不同拍法予以保留。
+
+2026-10-30：儲存層由本機 Qdrant 改為 NumPy 精確搜尋，適用於偶爾整批更新的圖庫。`index_path` 指向 `.data/numpy-index/`。每個完整世代包含 float64 L2 正規化 `.npy` 矩陣，以及按列對應的照片 JSON（ID、路徑、標籤、去重指紋及模型簽章）；`current.json` 保存檔案雜湊並原子切換目前世代。啟動時檢查完整性、資料列數／維度、唯一 ID、有限且正規化的向量，以及模型簽章，避免錯配或混用。
+
+API 啟動時一次載入索引，查詢以正規化向量內積計算 cosine，沿用門檻及候選上限；門檻含等於值，相同分數按 ID 穩定排序。離線重建不會修改已載入的快照，正在運行的 API 繼續使用舊世代，重新啟動後才採用新世代。沒有 Qdrant 的單程序目錄鎖；預設仍用一個 worker，因為每個 worker 都需要自己的模型與索引記憶體。
+
+儲存邏輯集中在 `store.py`，API、SigLIP 2、去重及拍法重排的責任維持原樣。原始照片、圖庫資料及模型快取繼續使用；舊 Qdrant 索引與備份已按使用者要求移除，現行依賴與配置不包含 Qdrant。圖片上傳不保存，也不傳往外部推論服務。API 與模型／資料檔案在電腦本機運行，尚未測試公開部署。
+
+團隊共用版本同時保存固定模型、200 張 Commons 照片及有效 NumPy 世代，模型權重由 Git LFS 管理。索引內圖片及來源 catalog 路徑使用可搬移的相對路徑，clone 位置不影響資料對應；逐列與整檔雜湊照常驗證。啟動命令固定使用 Python 3.13、`uv.lock` 及 CPU，其他系統若載入到不同的模型／前處理簽章，先整批編碼隨附圖片，不混用不相容的向量。這些資料是可重現執行的輸入及產物，虛擬環境、個人快取與建置產物仍由各電腦自行建立。
+
+隨附示例包含食物、人像及風景，但不是正式美感篩選資料。需以 `--allow-demo` 明確啟用，結果包含 `demo: true`。獨立取景圖片的相關性、拍法覆蓋與延遲仍需正式圖庫及人工評估。啟動和檢查見 [backend/README.md](backend/README.md)。
 
 ## 狀態、生命週期與畫面規則
 
-- **畫面重建**：以 Bundle 保存鏡頭、閃光、倍率、九宮格、所選示範照片 ID、面板開啟及等待權限結果的狀態；不保存 Bitmap。示範照片選擇不是永久偏好設定。
+- **畫面重建**：以 Bundle 保存鏡頭、閃光、倍率、九宮格、推薦結果的 ID／圖片網址／描述、所選照片 ID、面板開啟及等待權限結果的狀態；重建後重新載入圖片，不保存 Bitmap。參考照片選擇不是永久偏好設定。
 - **權限狀態**：SharedPreferences 只記錄曾否詢問，用於決定提示方式；每次返回仍以系統實際權限為準，旋轉時不重複請求。
 - **相機生命週期**：由 CameraX 綁定 Activity 管理背景停止及前景恢復；過期的非同步啟動或控制回呼不更新新狀態。
 - **保存生命週期**：保存使用 application context 與共用背景執行緒，已開始的保存可在 Activity 銷毀後收尾或清理，回呼不更新已銷毀畫面。系統終止 App 時不保證保存完成。
@@ -96,12 +142,11 @@ DemoReferences → List<ReferencePhoto> → ReferencePicker
 
 ## 待實作功能與接入邊界
 
-以下為後續設計方向，表中的能力與介面尚未實作；現有 `reference` package 只負責示範照片選擇。
+以下為後續設計方向，表中的能力與介面尚未實作；現有 `reference` package 已負責取景推薦及參考照片選擇。
 
 | 功能 | 建議位置 | 主要輸入 → 輸出 |
 | --- | --- | --- |
 | 場景分析 | `scene` | 相機快照 → 可由使用者修改的場景描述 |
-| 參考推薦 | `reference` | 快照／場景與使用者條件 → 排序照片、ID、標籤及可選輪廓 |
 | 輪廓疊圖 | `reference` | 所選參考 → 可移動、縮放的預覽疊圖 |
 | 構圖建議 | `guidance` | 當前影像／感測資訊與可選參考 → 動作提示與理由 |
 | 相機參數建議 | `guidance` | 場景與裝置支援範圍 → 可用設定及理由，經使用者確認後套用 |
@@ -114,7 +159,7 @@ DemoReferences → List<ReferencePhoto> → ReferencePicker
 場景 + 裝置支援範圍 → 參數建議 → 使用者確認 → 套用
 ```
 
-模型、檢索方法、資料儲存及本機／遠端執行位置仍待實驗決定，以效果、延遲、記憶體、網絡依賴與成本作比較。
+參考推薦已先採 SigLIP 2／NumPy 精確搜尋基線；其他模型、檢索改進及本機／遠端分工，仍按效果、延遲、記憶體、網絡依賴與成本作實驗比較。
 
 ### 接入規則
 
@@ -124,14 +169,14 @@ DemoReferences → List<ReferencePhoto> → ReferencePicker
 - 分析先由使用者觸發；影像處理、檢索及網絡操作不阻塞 UI。以請求 ID 忽略過期回應，離開畫面後取消或忽略未完成結果。
 - 手動修改場景後重新推薦，保留使用者的修改，直到使用者重新啟用自動更新。
 - 提供載入中、空結果、成功及失敗狀態；分析或推薦失敗時，基本相機仍可使用。
-- 如確定需要遠端服務，再建立 `backend/`，加入傳送資料說明、逾時、取消及圖片大小限制；API key 留在服務端。
-- 算法比較實驗有需要保存時才建立 `experiments/`，記錄執行方式及量測結果。模型權重與研究影像另行管理。
+- Android 已接入推薦 API，按需傳送取景並處理逾時、取消及圖片大小限制。後續公開部署再設定正式 HTTPS 網址及服務管理；API key 留在服務端。
+- 算法比較實驗有需要保存時才建立 `experiments/`，記錄執行方式及量測結果。指定的共用模型權重使用 Git LFS；研究參與者影像另行管理，不因共用公開圖庫而自動納入 Git。
 
 ## 後續開發次序
 
 1. 在真機補驗基本相機、權限、旋轉及保存流程。
-2. 接通所選參考的輪廓疊圖與移動／縮放操作，補上場景編輯及假資料推薦流程。
-3. 比較算法與執行位置，接入場景分析及實際推薦。
+2. 準備正式圖庫與獨立查詢圖，校準推薦門檻、去重及拍法權重，評估效果和延遲。
+3. 在現有取景推薦及照片選擇上接通輪廓疊圖／移動／縮放，按需要補場景編輯及模型比較。
 4. 加入構圖與參數建議，再進行整合及用戶評估。
 
-每次改動依功能選擇建置、lint、裝置測試及真機檢查；指令與驗證限制見 README。架構改變時更新本文件，保留已實作與待實作的區分。
+每次改動依功能選擇建置、lint、API 操作及真機檢查；指令與驗證限制見 README。架構改變時更新本文件，保留已實作與待實作的區分。

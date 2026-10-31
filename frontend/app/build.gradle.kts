@@ -13,7 +13,12 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        val apiBaseUrl = providers.gradleProperty("photocopilot.apiBaseUrl")
+            .getOrElse("http://10.0.2.2:8000/")
+        buildConfigField("String", "API_BASE_URL", "\"${apiBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+    }
+    buildFeatures {
+        buildConfig = true
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -28,7 +33,4 @@ dependencies {
     implementation("androidx.camera:camera-camera2:$cameraXVersion")
     implementation("androidx.camera:camera-lifecycle:$cameraXVersion")
     implementation("androidx.camera:camera-view:$cameraXVersion")
-    androidTestImplementation("androidx.test.ext:junit:1.3.0")
-    androidTestImplementation("androidx.test:core:1.7.0")
-    androidTestImplementation("androidx.test:runner:1.7.0")
 }
